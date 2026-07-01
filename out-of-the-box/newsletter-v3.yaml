@@ -1,0 +1,174 @@
+name: Daily Intelligence Brief v3
+description: >
+  Daily intelligence newsletter with platform primitives: curated RSS sources,
+  deterministic scoring (freshness 0.3, authority 0.4, relevance 0.2, story 0.1),
+  dedup across editions, cross-run story tracking, and LLM synthesis.
+version: 3
+created: "2026-06-25T00:00:00Z"
+updated: "2026-06-25T00:00:00Z"
+tags: ["newsletter", "intelligence", "daily", "auto-publish", "v3", "deterministic-scoring", "stories"]
+
+input_schema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: "Topic theme for this intelligence brief"
+    date:
+      type: string
+      description: "Edition date (YYYY-MM-DD)"
+    recipient:
+      type: string
+      description: "Email recipient"
+      default: "newsletter@evolvingsoftware.com"
+  required: [topic]
+
+tool_instances:
+  email_gateway:
+    tool_ref: send_email
+    tier: permanent
+    credential_ref: newsletter-email-creds
+
+credentials:
+  - id: newsletter-email-creds
+    type: smtp
+    ref: keychain://esam/newsletter-v3-smtp
+
+authority:
+  level: standard
+  cost_limit_cents: 100
+  hard_gate: true
+  model_allowlist: ["gemma-uncensored", "gemma-4-12b"]
+
+steps:
+  # ── Step 1: Scan curated sources (data pipeline with deterministic scoring) ──
+  - id: step-scan-sources
+    label: Scan Curated Sources
+    type: data_pipeline
+    prompt: |
+      Scan all enabled RSS sources for {{input.topic}} ({{input.date}}).
+      Use the pre-configured scoring rules to score, dedup against seen_store,
+      and return the top 10 items for synthesis.
+    pipeline_config:
+      source_ids: []
+      dedup: true
+      max_items: 50
+      scoring_rules:
+        - rule_key: freshness
+          weight: 0.3
+          source_field: published_date
+          transform: normalize_0_10
+        - rule_key: authority
+          weight: 0.4
+          source_field: domain_tier
+          transform: tier_to_score
+        - rule_key: relevance
+          weight: 0.2
+          source_field: keyword_matches
+          transform: normalize_0_10
+        - rule_key: story_continuity
+          weight: 0.1
+          source_field: is_new_angle
+          transform: boolean
+      top_n: 10
+    authority:
+      level: readonly
+      cost_limit_cents: 5
+
+  # ── Step 2: Load prior stories from run memory ──
+  - id: step-load-prior-stories
+    label: Load Prior Stories
+    type: memory_read
+    prompt: |
+      Load prior story cards from run memory for this workflow.
+      Return existing story cards with their change history so the synthesizer
+      can compare what changed since the last edition.
+    memory_key: "stories.*"
+    memory_tags: "story"
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 3: LLM Synthesis ──
+  - id: step-synthesize
+    label: Synthesize Newsletter
+    type: llm_call
+    prompt: |
+      You are an intelligence analyst. Write the "{{input.topic}}" intelligence brief for {{input.date}}
+      using the pre-scored, deduped data and prior story context below.
+
+      SCORED TOP ITEMS (top 10 from curated sources):
+      {{steps.step-scan-sources.output_text}}
+
+      PRIOR STORIES (from previous editions — check these for "What Changed"):
+      {{steps.step-load-prior-stories.output_text}}
+
+      Write in this structured format:
+
+      ## Today's System Pattern
+      (1 paragraph strategic observation based on the top scored items)
+
+      ## What Changed
+      (3-5 items. For each, reference whether this is new vs a continuation of prior stories.
+      If a prior story card exists for a topic, note how this edition's coverage differs —
+      has the story evolved, escalated, or resolved? This is the cross-edition tracking.)
+
+      ## Weak Signals
+      (2-3 emerging but unconfirmed signals from the data that haven't yet become full stories)
+
+      ## Sources
+      (linked URLs from the scored items — include at least 5)
+
+      Return ONLY valid JSON:
+      {
+        "subject": "Intelligence Brief: Key Finding — Date",
+        "body_markdown": "Full markdown content with all sections including Today's System Pattern, What Changed, Weak Signals, and Sources...",
+        "key_signals": ["Signal Title 1", "Signal Title 2", "Signal Title 3"],
+        "sources": ["https://url1.com", "https://url2.com"]
+      }
+    model: gemma-uncensored
+    max_tokens: 2048
+    authority:
+      level: standard
+      cost_limit_cents: 25
+
+  # ── Step 4: Track edition in run memory ──
+  - id: step-track-stories
+    label: Track Edition
+    type: memory_write
+    prompt: |
+      Record this edition of the newsletter in run memory for cross-edition tracking.
+    memory_key: "editions.last.subject"
+    memory_value: "{{steps.step-synthesize.subject}}"
+    memory_tags: "edition"
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 5: Publish via email ──
+  - id: step-publish
+    label: Publish Newsletter
+    type: tool_call
+    prompt: |
+      Send the following intelligence brief via email:
+
+      To: {{input.recipient | default: "newsletter@evolvingsoftware.com"}}
+      Subject: {{steps.step-synthesize.subject}}
+      Body:
+      {{steps.step-synthesize.body_markdown}}
+    tools: ["email_gateway"]
+    model: gemma-uncensored
+    authority:
+      level: admin
+      cost_limit_cents: 10
+      tool_allowlist: ["email_gateway"]
+
+connections:
+  - from: step-scan-sources
+    to: step-load-prior-stories
+  - from: step-load-prior-stories
+    to: step-synthesize
+  - from: step-synthesize
+    to: step-track-stories
+  - from: step-track-stories
+    to: step-publish

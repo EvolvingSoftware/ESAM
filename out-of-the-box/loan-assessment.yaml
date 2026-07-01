@@ -1,0 +1,42 @@
+name: Loan Assessment
+description: Automated loan application assessment pipeline
+version: 1
+created: '2026-06-21T03:55:36.207865+00:00'
+updated: '2026-06-21T03:55:36.577906+00:00'
+
+steps:
+  - id: step-3917cb62
+    label: Verify Identity
+    type: tool_call
+    prompt: ''
+    tools: ["search_web"]
+    position: [100.0, 100.0]
+  - id: step-ca888547
+    label: Check Credit
+    type: tool_call
+    prompt: ''
+    tools: ["calculate"]
+    position: [400.0, 100.0]
+  - id: step-a841f590
+    label: Assess Risk
+    type: llm_call
+    prompt: 'Based on identity verification: {previous_output} and credit check: {steps.step-check-credit.output_text}, assess loan risk and recommend decision'
+    model: gpt-4o
+    position: [250.0, 280.0]
+  - id: step-e92b0107
+    label: Decision
+    type: llm_call
+    prompt: 'Based on risk assessment: {previous_output}, generate final loan decision letter'
+    model: gpt-4o
+    position: [250.0, 440.0]
+
+connections:
+  - from: step-3917cb62
+    to: step-a841f590
+    label: Identity verified
+  - from: step-ca888547
+    to: step-a841f590
+    label: Credit checked
+  - from: step-a841f590
+    to: step-e92b0107
+    label: Risk assessed

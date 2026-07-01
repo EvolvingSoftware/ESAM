@@ -1,0 +1,147 @@
+# Connector Manifest — ES Agent Management
+# Describes all 10 gold-standard connectors
+
+connectors:
+  - name: reddit
+    description: Fetch hot posts from a Reddit subreddit
+    config_fields:
+      - name: subreddit
+        type: string
+        required: true
+        description: Subreddit name (e.g. 'python')
+      - name: limit
+        type: integer
+        required: false
+        description: Number of posts to fetch (default 25)
+        default: 25
+    auth_required: false
+    rate_limit: 60 requests per minute
+
+  - name: hackernews
+    description: Fetch top stories from Hacker News (ID-resolution pattern)
+    config_fields:
+      - name: limit
+        type: integer
+        required: false
+        description: Number of stories to fetch (default 30)
+        default: 30
+    auth_required: false
+    rate_limit: 500 requests per minute (Firebase)
+
+  - name: slack
+    description: Fetch messages from a Slack channel
+    config_fields:
+      - name: channel
+        type: string
+        required: true
+        description: Channel name or ID (e.g. '#general')
+      - name: limit
+        type: integer
+        required: false
+        description: Max messages to fetch (default 50)
+        default: 50
+    auth_required: true
+    rate_limit: 1 request per second (tier 3)
+
+  - name: notion
+    description: Fetch pages from a Notion database
+    config_fields:
+      - name: database_id
+        type: string
+        required: true
+        description: Notion database ID (32-char hex)
+      - name: filter
+        type: string
+        required: false
+        description: Optional filter expression (JSON)
+    auth_required: true
+    rate_limit: 3 requests per second (Notion API)
+
+  - name: github
+    description: Fetch issues and PRs from a GitHub repository
+    config_fields:
+      - name: repo
+        type: string
+        required: true
+        description: Repository (e.g. 'nousresearch/hermes-agent')
+      - name: per_page
+        type: integer
+        required: false
+        description: Items per page (default 30)
+        default: 30
+    auth_required: true
+    rate_limit: 60 requests per hour (unauthenticated); 5000/hr (authenticated)
+
+  - name: gmail
+    description: Fetch emails from a Gmail mailbox
+    config_fields:
+      - name: query
+        type: string
+        required: false
+        description: Gmail search query (default 'in:inbox')
+        default: 'in:inbox'
+      - name: max_results
+        type: integer
+        required: false
+        description: Max emails to fetch (default 50)
+        default: 50
+    auth_required: true
+    rate_limit: 250 queries per 100 seconds per user (Gmail API)
+
+  - name: twitter_x
+    description: Fetch tweets/posts from X (Twitter)
+    config_fields:
+      - name: query
+        type: string
+        required: true
+        description: Search query or @username
+      - name: count
+        type: integer
+        required: false
+        description: Number of tweets to fetch (default 20)
+        default: 20
+    auth_required: true
+    rate_limit: 100 requests per 15 minutes (X API v2)
+
+  - name: airtable
+    description: Fetch records from an Airtable base/table
+    config_fields:
+      - name: base_id
+        type: string
+        required: true
+        description: Airtable base ID (e.g. 'appXXXXXXXXXXXXXX')
+      - name: table_name
+        type: string
+        required: true
+        description: Table name (e.g. 'Projects')
+    auth_required: true
+    rate_limit: 5 requests per second per base (Airtable API)
+
+  - name: google_sheets
+    description: Fetch rows from a Google Sheet range
+    config_fields:
+      - name: spreadsheet_id
+        type: string
+        required: true
+        description: Google Sheets spreadsheet ID
+      - name: range
+        type: string
+        required: true
+        description: Range in A1 notation (e.g. 'Sheet1!A1:C10')
+    auth_required: true
+    rate_limit: 100 requests per 100 seconds per project (Sheets API)
+
+  - name: jira
+    description: Fetch issues from a Jira project
+    config_fields:
+      - name: project
+        type: string
+        required: true
+        description: Jira project key (e.g. 'PROJ')
+      - name: max_results
+        type: integer
+        required: false
+        description: Max issues to fetch (default 50)
+        default: 50
+    auth_required: true
+    rate_limit: 100 requests per minute (Jira Cloud API)

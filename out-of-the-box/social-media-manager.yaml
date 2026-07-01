@@ -1,0 +1,69 @@
+name: Social Media Manager
+description: Draft, review, schedule, and publish social media content across platforms
+version: 1
+created: "2026-06-22T00:00:00Z"
+updated: "2026-06-22T00:00:00Z"
+
+steps:
+  - id: step-draft
+    label: Draft Post
+    type: llm_call
+    prompt: |
+      Draft a social media post for {{input.platform}} about: {{input.topic}}
+      
+      Tone: {{input.tone | default: "professional"}}
+      
+      Return JSON: { post_text, hashtags, suggested_image_description, platform_specific_notes }
+    model: gemma-4-12b
+    position: [0, 0]
+
+  - id: step-review
+    label: Review and Approve
+    type: human_escalation
+    prompt: |
+      Review the following social media post:
+      
+      Platform: {{input.platform}}
+      Draft: {{steps.step-draft.post_text}}
+      Hashtags: {{steps.step-draft.hashtags}}
+    escalation:
+      subject: "Social media post review — {{input.topic}}"
+      body_template: |
+        Platform: {{input.platform}}
+        Topic: {{input.topic}}
+        Draft: {{steps.step-draft.post_text}}
+        Hashtags: {{steps.step-draft.hashtags | join: ", "}}
+        
+        Action: Approve, Edit, or Reject
+      timeout_hours: 24
+      response_options:
+        - action: approve
+          label: Approve and Publish
+          next_step: step-schedule
+        - action: edit
+          label: Edit and Approve
+          next_step: step-schedule
+          require_text: true
+        - action: reject
+          label: Reject with Feedback
+          require_text: true
+    model: gemma-4-12b
+    position: [400, 0]
+
+  - id: step-schedule
+    label: Schedule Post
+    type: tool_call
+    prompt: |
+      Publish to {{input.platform}}:
+      {{steps.step-draft.post_text}}
+      {{steps.step-draft.hashtags | join: " "}}
+    tools: ["social_media_api"]
+    model: gemma-4-12b
+    position: [800, 0]
+
+connections:
+  - from: step-draft
+    to: step-review
+  - from: step-review
+    to: step-schedule
+    label: Approved

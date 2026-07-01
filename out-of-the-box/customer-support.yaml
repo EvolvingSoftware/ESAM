@@ -1,0 +1,106 @@
+name: Customer Support
+description: Classify support tickets, draft responses, get human approval, and send replies to customers
+version: 1
+created: "2026-06-22T00:00:00Z"
+updated: "2026-06-22T00:00:00Z"
+
+steps:
+  - id: step-classify
+    label: Classify Ticket
+    type: llm_call
+    prompt: |
+      Classify the following customer support ticket:
+
+      Customer: {{input.customer_name}}
+      Ticket ID: {{input.ticket_id}}
+      Subject: {{input.ticket_subject}}
+      Description: {{input.ticket_description}}
+      Priority: {{input.priority | default: "Normal"}}
+
+      Return JSON with: { category, severity, suggested_response_template, requires_escalation, related_articles }
+    model: gemma-4-12b
+    position: [0, 0]
+
+  - id: step-draft-response
+    label: Draft Response
+    type: llm_call
+    prompt: |
+      Draft a customer support response for:
+
+      Customer: {{input.customer_name}}
+      Ticket: {{input.ticket_subject}}
+      Category: {{steps.step-classify.category}}
+      Severity: {{steps.step-classify.severity}}
+      Description: {{input.ticket_description}}
+
+      Return JSON with: { response_text, resolution_steps, knowledge_base_links, followup_required }
+    model: gemma-4-12b
+    position: [400, 0]
+
+  - id: step-review
+    label: Human Review
+    type: human_escalation
+    prompt: |
+      Review the following support ticket response:
+
+      Customer: {{input.customer_name}}
+      Ticket: {{input.ticket_subject}}
+      Category: {{steps.step-classify.category}}
+      Severity: {{steps.step-classify.severity}}
+      Draft Response: {{steps.step-draft-response.response_text}}
+    escalation:
+      subject: "Support ticket review — {{input.ticket_id}} — {{input.ticket_subject}}"
+      body_template: |
+        Customer: {{input.customer_name}}
+        Ticket ID: {{input.ticket_id}}
+        Subject: {{input.ticket_subject}}
+        Category: {{steps.step-classify.category}}
+        Severity: {{steps.step-classify.severity}}
+
+        Ticket Description:
+        {{input.ticket_description}}
+
+        Draft Response:
+        {{steps.step-draft-response.response_text}}
+
+        Resolution Steps: {{steps.step-draft-response.resolution_steps}}
+        Follow-up Required: {{steps.step-draft-response.followup_required}}
+
+        Action: Approve, Edit, or Reject
+      timeout_hours: 24
+      response_options:
+        - action: approve
+          label: Approve and Send
+          next_step: step-send
+        - action: edit
+          label: Edit and Approve
+          next_step: step-send
+          require_text: true
+        - action: reject
+          label: Reject with Feedback
+          require_text: true
+    model: gemma-4-12b
+    position: [800, 0]
+
+  - id: step-send
+    label: Send Response
+    type: tool_call
+    prompt: |
+      Send support response to {{input.customer_email}}:
+
+      Customer: {{input.customer_name}}
+      Ticket: {{input.ticket_subject}}
+      Response: {{steps.step-draft-response.response_text}}
+      Resolution Steps: {{steps.step-draft-response.resolution_steps}}
+    tools: ["ticket_system"]
+    model: gemma-4-12b
+    position: [1200, 0]
+
+connections:
+  - from: step-classify
+    to: step-draft-response
+  - from: step-draft-response
+    to: step-review
+  - from: step-review
+    to: step-send
+    label: Approved

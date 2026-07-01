@@ -1,0 +1,548 @@
+# ── Credential Store ──
+credential_store:
+  provider: keychain  # Options: keychain, vault, env, file
+  config:
+    scope: "esam"
+
+# ── Three-Tier Taxonomy ──
+tiers:
+  ephemeral:
+    description: Fire-and-forget tools with no state between calls
+    auth_model: per_call_or_global
+  instance_scoped:
+    description: Stateful tools with purpose-bound instances
+    auth_model: credential_tool_instance_triple
+    can_create_instances: true
+  permanent:
+    description: External APIs with their own auth and state
+    auth_model: wrapped_api_key
+
+tools:
+  # ── Tier 3: Permanent / External APIs ──
+  social_media_api:
+    label: "Social Media Publisher"
+    description: "Publish content to social media channels"
+    parameters:
+      channel:
+        type: select
+        options: ["twitter", "linkedin", "instagram", "facebook"]
+        label: "Channel"
+        required: true
+      content:
+        type: text
+        label: "Post Content"
+        required: true
+        source: "previous_step"
+      scheduled_time:
+        type: datetime
+        label: "Schedule For"
+        required: false
+    auth_required: true
+    auth_type: "oauth2"
+    cost_per_call: 0.001
+    tier: permanent
+    credential_ref: social_media_oauth  # OAuth2 tokens per channel
+
+  send_email:
+    label: "Send Email"
+    description: "Send an email via configured SMTP provider"
+    parameters:
+      to:
+        type: text
+        label: "Recipient"
+        required: true
+      subject:
+        type: text
+        label: "Subject"
+        required: true
+      body:
+        type: textarea
+        label: "Body"
+        required: true
+    auth_required: true
+    auth_type: "smtp"
+    cost_per_call: 0.0001
+    tier: permanent
+    credential_ref: smtp_credentials  # SMTP host/port/user/pass
+
+  search_web:
+    label: "Web Search"
+    description: "Search the web for information"
+    parameters:
+      query:
+        type: text
+        label: "Search Query"
+        required: true
+    auth_required: false
+    cost_per_call: 0.0
+    tier: ephemeral
+    credential_ref: ~  # No auth needed
+
+  format_output:
+    label: "Format Output"
+    description: "Format data into a structured output"
+    parameters:
+      format_type:
+        type: select
+        options: ["json", "csv", "table", "text"]
+        label: "Format Type"
+        required: true
+    auth_required: false
+    cost_per_call: 0.0
+    tier: ephemeral
+    credential_ref: ~  # No auth needed
+
+  postgres_read:
+    label: "Database Query"
+    description: "Read data from a PostgreSQL database"
+    parameters:
+      connection:
+        type: select
+        options: ["{{credentials.connections}}"]
+        label: "Connection"
+        required: true
+      query:
+        type: textarea
+        label: "SQL Query"
+        required: true
+    auth_required: true
+    auth_type: "database"
+    cost_per_call: 0.0005
+    tier: instance_scoped
+    credential_ref: db_connection  # Permission to use a specific DB connection
+    instance_template:
+      config_fields:
+        connection_name:
+          type: string
+          description: Logical name for this database connection
+          required: true
+        host:
+          type: string
+          description: PostgreSQL hostname
+          required: true
+        port:
+          type: integer
+          default: 5432
+          description: PostgreSQL port
+          required: false
+        database:
+          type: string
+          description: Database name
+          required: true
+        ssl_mode:
+          type: select
+          options: ["disable", "require", "verify-ca", "verify-full"]
+          default: "require"
+          description: SSL mode for the connection
+          required: false
+      credential_fields:
+        username:
+          type: string
+          description: Database username
+          required: true
+        password:
+          type: string
+          description: Database password
+          required: true
+        ssl_ca_cert:
+          type: string
+          description: Path to SSL CA certificate (if ssl_mode requires it)
+          required: false
+
+  sms_gateway:
+    label: "Send SMS"
+    description: "Send an SMS message via configured gateway"
+    parameters:
+      to:
+        type: text
+        label: "Phone Number"
+        required: true
+      message:
+        type: textarea
+        label: "Message"
+        required: true
+        source: "previous_step"
+    auth_required: true
+    auth_type: "api_key"
+    cost_per_call: 0.005
+    tier: permanent
+    credential_ref: sms_api_key  # Long-lived API key for the SMS gateway
+
+  # ── Tier 1: Ephemeral Tools ──
+  web_search:
+    label: "Web Search (Aggregated)"
+    description: "Aggregated web search using multiple engines"
+    type: http
+    tier: ephemeral
+    credential_ref: ~  # No auth needed; uses public search APIs via config
+    endpoint: http://127.0.0.1:4000/search
+    timeout: 15000
+    parameters:
+      query:
+        type: text
+        label: "Search Query"
+        required: true
+      max_results:
+        type: integer
+        label: "Max Results"
+        default: 10
+        required: false
+    auth_required: false
+    cost_per_call: 0.0
+
+  web_extract:
+    label: "Web Content Extractor"
+    description: "Extract clean content from a web page"
+    type: http
+    tier: ephemeral
+    credential_ref: ~  # No auth needed
+    endpoint: http://127.0.0.1:4000/extract
+    timeout: 30000
+    parameters:
+      url:
+        type: text
+        label: "Page URL"
+        required: true
+      extract_format:
+        type: select
+        options: ["markdown", "text", "html"]
+        default: "markdown"
+        label: "Output Format"
+        required: false
+    auth_required: false
+    cost_per_call: 0.0
+
+  web_browser:
+    label: "Web Browser (Automated)"
+    description: "Headless browser for JavaScript-heavy pages and interactions"
+    type: browser
+    tier: ephemeral
+    credential_ref: ~  # No auth needed; session-scoped only
+    endpoint: ws://127.0.0.1:9222
+    timeout: 60000
+    parameters:
+      url:
+        type: text
+        label: "Page URL"
+        required: true
+      actions:
+        type: textarea
+        label: "Browser Actions (JSON)"
+        description: "List of actions: click, type, screenshot, scroll, wait"
+        required: false
+      screenshot:
+        type: boolean
+        label: "Capture Screenshot"
+        default: false
+        required: false
+    auth_required: false
+    cost_per_call: 0.001
+
+  compute:
+    label: "Compute Sandbox"
+    description: "Ephemeral sandboxed compute environment (Python, shell)"
+    type: sandbox
+    tier: ephemeral
+    credential_ref: ~  # No auth needed; sandbox is ephemeral
+    timeout: 120000
+    parameters:
+      runtime:
+        type: select
+        options: ["python3", "bash", "node"]
+        label: "Runtime"
+        required: true
+      code:
+        type: textarea
+        label: "Code to Execute"
+        required: true
+      variables:
+        type: object
+        label: "Input Variables"
+        required: false
+    auth_required: false
+    cost_per_call: 0.005
+
+  camoufox:
+    label: "Camoufox Browser"
+    description: "Browser automation for scraping and rendering"
+    type: http
+    tier: ephemeral
+    credential_ref: ~  # No auth needed
+    endpoint: http://127.0.0.1:3211
+    health_path: /health
+    timeout: 30000
+    allowed_steps: [tool_call]
+    parameters:
+      url:
+        type: text
+        label: "Page URL"
+        required: true
+      actions:
+        type: textarea
+        label: "Actions (JSON array)"
+        description: "List of browser actions to perform"
+        required: false
+      wait_for:
+        type: text
+        label: "Wait For Selector"
+        description: "CSS selector to wait for before returning"
+        required: false
+    auth_required: false
+    cost_per_call: 0.002
+
+  firecrawl:
+    label: "Firecrawl Web Scraper"
+    description: "Web scraping and crawling service for extracting clean content from websites"
+    type: http
+    tier: ephemeral
+    credential_ref: firecrawl_api_key  # Optional API key for authenticated usage
+    endpoint: http://127.0.0.1:3002
+    health_path: /health
+    timeout: 60000
+    allowed_steps: [tool_call]
+    parameters:
+      url:
+        type: text
+        label: "Target URL"
+        required: true
+      crawl_mode:
+        type: select
+        options: ["scrape", "crawl", "map"]
+        default: "scrape"
+        label: "Crawl Mode"
+        description: "scrape=single page, crawl=follow links, map=discover URLs"
+        required: false
+      max_pages:
+        type: integer
+        label: "Max Pages (crawl mode)"
+        default: 10
+        required: false
+      formats:
+        type: text
+        label: "Output Formats (comma-separated)"
+        description: "markdown, html, rawHtml, screenshot, links, extract"
+        default: "markdown"
+        required: false
+    auth_required: false
+    cost_per_call: 0.002
+
+  searxng:
+    label: "SearXNG Search"
+    description: "Privacy-focused metasearch engine running on Oracle infrastructure"
+    type: http
+    tier: ephemeral
+    credential_ref: ~  # No auth needed; internal service
+    endpoint: http://127.0.0.1:8888
+    health_path: /health
+    timeout: 30000
+    allowed_steps: [tool_call]
+    parameters:
+      query:
+        type: text
+        label: "Search Query"
+        required: true
+      categories:
+        type: text
+        label: "Search Categories (comma-separated)"
+        description: "e.g. general, news, science, images"
+        required: false
+      language:
+        type: select
+        options: ["auto", "en", "fr", "de", "es", "ja", "zh"]
+        default: "auto"
+        label: "Language"
+        required: false
+      max_results:
+        type: integer
+        label: "Max Results"
+        default: 10
+        required: false
+    auth_required: false
+    cost_per_call: 0.0
+
+  # ── Tier 2: Instance-Scoped Tools ──
+  sqlite_query:
+    label: "SQLite Query"
+    description: "Query a SQLite database"
+    type: database
+    tier: instance_scoped
+    credential_ref: db_path  # Permission to access the DB path
+    instance_template:
+      config_fields:
+        db_path:
+          type: string
+          description: Absolute path to SQLite database file
+          required: true
+        read_only:
+          type: boolean
+          default: true
+          description: Restrict to SELECT queries only
+      credential_fields:
+        read_key:
+          type: string
+          description: Encryption key for read access
+          required: false
+    parameters:
+      query:
+        type: textarea
+        label: "SQL Query"
+        required: true
+      instance:
+        type: select
+        options: ["{{instances.sqlite}}"]
+        label: "Database Instance"
+        required: true
+    auth_required: false  # Auth is via instance credential
+    cost_per_call: 0.0001
+
+  # ── Tier 3: Calendly / Scheduling ──
+  calendly:
+    label: "Calendly"
+    description: "Schedule meetings and manage Calendly events"
+    type: api
+    tier: permanent
+    credential_ref: calendly_api_key  # Calendly Personal Access Token
+    parameters:
+      action:
+        type: select
+        options: ["list_event_types", "get_available_slots", "schedule_event", "cancel_event", "list_events"]
+        label: "Action"
+        required: true
+      arguments:
+        type: object
+        label: "Action Arguments"
+        required: false
+    auth_required: true
+    auth_type: "bearer_token"
+    cost_per_call: 0.001
+
+  # ── Tier 3: Email Marketing API ──
+  email_marketing_api:
+    label: "Email Marketing"
+    description: "Send marketing emails via ESP (e.g. Mailchimp, SendGrid, Brevo)"
+    type: api
+    tier: permanent
+    credential_ref: email_marketing_api_key  # Long-lived API key for the ESP
+    parameters:
+      action:
+        type: select
+        options: ["send_campaign", "add_subscriber", "create_template", "get_stats"]
+        label: "Action"
+        required: true
+      campaign_name:
+        type: text
+        label: "Campaign Name"
+        required: false
+      recipient_list:
+        type: textarea
+        label: "Recipient List (one per line)"
+        required: false
+      subject:
+        type: text
+        label: "Subject"
+        required: false
+      body_html:
+        type: textarea
+        label: "HTML Body"
+        required: false
+    auth_required: true
+    auth_type: "api_key"
+    cost_per_call: 0.002
+
+  # ── Tier 3: Slack Notification ──
+  slack_notify:
+    label: "Slack Notification"
+    description: "Send notifications to Slack channels"
+    type: api
+    tier: permanent
+    credential_ref: slack_bot_token  # Slack Bot OAuth token
+    parameters:
+      channel:
+        type: text
+        label: "Channel ID or Name"
+        required: true
+      message:
+        type: textarea
+        label: "Message Text"
+        required: true
+      blocks:
+        type: object
+        label: "Block Kit Blocks (JSON)"
+        description: "Optional Slack Block Kit layout"
+        required: false
+      thread_ts:
+        type: text
+        label: "Thread Timestamp"
+        description: "Reply in thread if provided"
+        required: false
+    auth_required: true
+    auth_type: "bearer_token"
+    cost_per_call: 0.0
+
+  # ── Tier 1: Agent Tools ──
+  agent_opencode:
+    label: "OpenCode Agent"
+    description: "Delegate tasks to the OpenCode coding agent"
+    type: agent
+    tier: ephemeral
+    credential_ref: ~  # Agent runs within same session context
+    parameters:
+      task:
+        type: textarea
+        label: "Task Description"
+        required: true
+      context:
+        type: textarea
+        label: "Additional Context"
+        required: false
+        source: "previous_step"
+    auth_required: false
+    cost_per_call: 0.01
+
+  agent_hermes:
+    label: "Hermes Agent"
+    description: "Delegate tasks to another Hermes agent instance"
+    type: agent
+    tier: ephemeral
+    credential_ref: hermes_profile  # Profile to use for the sub-agent
+    parameters:
+      task:
+        type: textarea
+        label: "Task Description"
+        required: true
+      profile:
+        type: text
+        label: "Hermes Profile"
+        description: "Profile name to use (default: current profile)"
+        required: false
+      context:
+        type: textarea
+        label: "Additional Context"
+        required: false
+        source: "previous_step"
+    auth_required: false
+    cost_per_call: 0.01
+
+  agent_claude:
+    label: "Claude Agent (Codex)"
+    description: "Delegate tasks to Anthropic Claude Codex agent"
+    type: agent
+    tier: ephemeral
+    credential_ref: claude_api_key  # Anthropic API key for Claude
+    parameters:
+      task:
+        type: textarea
+        label: "Task Description"
+        required: true
+      context:
+        type: textarea
+        label: "Additional Context"
+        required: false
+        source: "previous_step"
+      max_tokens:
+        type: integer
+        label: "Max Tokens"
+        default: 4096
+        required: false
+    auth_required: false
+    cost_per_call: 0.015

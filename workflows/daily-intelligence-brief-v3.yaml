@@ -1,0 +1,267 @@
+name: Daily Intelligence Brief v3
+description: '12-step newsletter pipeline — collect, process, synthesize, output'
+version: 64
+created: '2026-06-25T11:46:50.435038+00:00'
+updated: '2026-06-28T22:17:08.354631+00:00'
+
+steps:
+  - id: step-410f7386
+    label: Fetch Anthropic Blog
+    type: fetch_and_parse
+    prompt: Fetch and parse Anthropic blog posts
+    position: [260.0, 80.0]
+  - id: step-332c5278
+    label: Fetch Google AI Blog
+    type: fetch_and_parse
+    prompt: Fetch and parse Google AI blog posts
+    position: [580.0, 80.0]
+  - id: step-a2284ae9
+    label: Assign Citation IDs
+    type: assign_citations
+    prompt: Assign S001+ citation IDs to all articles
+    position: [900.0, 80.0]
+  - id: step-7d9ac5a3
+    label: Synthesize Narrative
+    type: synthesize_narrative
+    prompt: Synthesize narrative text from story diffs and trajectories
+    position: [1220.0, 80.0]
+  - id: step-ba16368a
+    label: Validate Citations
+    type: validate_citations
+    prompt: 'Verify all [S001+] citations in generated output against citation map'
+    position: [1540.0, 80.0]
+  - id: step-fa7994a6
+    label: Fetch Arxiv cs.AI
+    type: fetch_and_parse
+    prompt: Fetch and parse latest AI research papers from Arxiv
+    position: [260.0, 220.0]
+  - id: step-bf04c3b9
+    label: Fetch Reddit LocalLLaMA
+    type: fetch_and_parse
+    prompt: Fetch and parse r/LocalLLaMA hot posts
+    position: [580.0, 220.0]
+  - id: step-ae30955a
+    label: Resolve Citations
+    type: resolve_citations
+    prompt: Build resolvable citation map with source metadata
+    position: [900.0, 220.0]
+  - id: step-db0140f4
+    label: Detect Narrative Arcs
+    type: detect_narrative_arcs
+    prompt: Detect emerging narrative arcs across articles
+    position: [1220.0, 220.0]
+  - id: step-1977843b
+    label: Reject Hallucinated
+    type: reject_if_invalid
+    prompt: Block delivery if any hallucinated citations detected
+    position: [1540.0, 220.0]
+  - id: step-74837836
+    label: Fetch Arxiv cs.CL
+    type: fetch_and_parse
+    prompt: 'Fetch and parse latest computational linguistics papers from Arxiv'
+    position: [260.0, 360.0]
+  - id: step-dc4e20b3
+    label: Fetch Reuters Tech
+    type: fetch_and_parse
+    prompt: Fetch and parse Reuters technology news
+    position: [580.0, 360.0]
+  - id: step-c6a2c0f8
+    label: Export Citation Map
+    type: export_citation_map
+    prompt: Export complete citation map for LLM context
+    position: [900.0, 360.0]
+  - id: step-eb2a8221
+    label: Generate Article Ideas
+    type: generate_article_ideas
+    prompt: 'Generate editorial article ideas from cross-referenced clusters'
+    position: [1220.0, 360.0]
+  - id: step-bc019daa
+    label: Archive Edition
+    type: archive_edition
+    prompt: Archive this edition with full metadata
+    position: [1540.0, 360.0]
+  - id: step-ebf7ebdd
+    label: Fetch Arxiv cs.LG
+    type: fetch_and_parse
+    prompt: Fetch and parse latest machine learning papers from Arxiv
+    position: [260.0, 500.0]
+  - id: step-9d98aed4
+    label: Fetch TechCrunch
+    type: fetch_and_parse
+    prompt: Fetch and parse TechCrunch articles
+    position: [580.0, 500.0]
+  - id: step-c81bcf41
+    label: Cross-Reference Stories
+    type: detect_cross_references
+    prompt: Detect same stories across multiple sources
+    position: [900.0, 500.0]
+  - id: step-fd907e7b
+    label: Score Edition Quality
+    type: score_edition_quality
+    prompt: 'Score edition quality: 35% citation integrity + 25% signal + 25% narrative + 15% brand'
+    position: [1220.0, 500.0]
+  - id: step-16222e2d
+    label: Rebuild Archive Index
+    type: rebuild_archive_index
+    prompt: Rebuild archive search index
+    position: [1540.0, 500.0]
+  - id: step-fe95a0e3
+    label: Fetch Google News AI
+    type: fetch_and_parse
+    prompt: 'Fetch and parse Google News articles about artificial intelligence'
+    position: [260.0, 640.0]
+  - id: step-7b3d1f53
+    label: Fetch The Verge
+    type: fetch_and_parse
+    prompt: Fetch and parse The Verge articles
+    position: [580.0, 640.0]
+  - id: step-c87599e5
+    label: Boost Multi-Sourced
+    type: boost_multi_sourced
+    prompt: 'Boost quality scores for stories appearing in multiple sources'
+    position: [900.0, 640.0]
+  - id: step-9b6a674a
+    label: Check Quality Regression
+    type: check_quality_regression
+    prompt: 'Check scores against historical baselines — reject if below threshold'
+    position: [1220.0, 640.0]
+  - id: step-512255cc
+    label: Register Edition
+    type: register_edition
+    prompt: Register edition in edition registry for comparison
+    position: [1540.0, 640.0]
+  - id: step-2cb8491a
+    label: Fetch Hermes GitHub Releases
+    type: fetch_and_parse
+    prompt: Fetch latest Hermes Agent GitHub releases
+    position: [260.0, 780.0]
+  - id: step-42cece91
+    label: Extract & Deduplicate Content
+    type: batch_extract
+    prompt: 'Extract clean content from all fetched items, deduplicate by URL'
+    position: [580.0, 780.0]
+  - id: step-60de7890
+    label: Cluster by Topic
+    type: cluster_by_topic
+    prompt: Cluster articles into topic groups for narrative synthesis
+    position: [900.0, 780.0]
+  - id: step-76cb90d8
+    label: Render Capped Sections
+    type: render_sections
+    prompt: 'Render each section with hard caps: 5000 chars articles, 2000 chars social, 500 chars scores, 1000 chars sources'
+    position: [1220.0, 780.0]
+  - id: step-243afcc3
+    label: Fetch Hacker News
+    type: fetch_and_parse
+    prompt: Fetch and parse top Hacker News stories
+    position: [260.0, 920.0]
+  - id: step-4e8a811e
+    label: Extract Entities & Keywords
+    type: extract_entities_batch
+    prompt: 'Extract named entities, topics, and keywords from extracted articles'
+    position: [580.0, 920.0]
+  - id: step-ed71bb99
+    label: Diff Against Prior
+    type: diff_stories
+    prompt: 'Diff current articles against previous edition to detect new stories'
+    position: [900.0, 920.0]
+  - id: step-d1424ab2
+    label: Join Sections into Prompt
+    type: join_brief
+    prompt: 'Assemble capped sections into a structured LLM brief prompt (< 8K chars total)'
+    position: [1220.0, 920.0]
+  - id: step-3b333b99
+    label: Fetch HN Most Discussed
+    type: fetch_and_parse
+    prompt: Fetch Hacker News most discussed stories via Algolia API
+    position: [260.0, 1060.0]
+  - id: step-4b310da7
+    label: Extract Keywords
+    type: extract_keywords
+    prompt: Extract and rank keywords from articles
+    position: [580.0, 1060.0]
+  - id: step-abe6c66f
+    label: Compute Trajectories
+    type: compute_trajectories
+    prompt: Compute story trajectory (new, updated, dormant, unchanged)
+    position: [900.0, 1060.0]
+  - id: step-0f6a23bd
+    label: Generate Newsletter from Structured Brief
+    type: llm_call
+    prompt: '{{steps.join_brief.output}}'
+    model: gemma-4-12b
+    position: [1220.0, 1060.0]
+
+connections:
+  - from: step-fa7994a6
+    to: step-42cece91
+  - from: step-ebf7ebdd
+    to: step-42cece91
+  - from: step-74837836
+    to: step-42cece91
+  - from: step-243afcc3
+    to: step-42cece91
+  - from: step-bf04c3b9
+    to: step-42cece91
+  - from: step-fe95a0e3
+    to: step-42cece91
+  - from: step-dc4e20b3
+    to: step-42cece91
+  - from: step-9d98aed4
+    to: step-42cece91
+  - from: step-7b3d1f53
+    to: step-42cece91
+  - from: step-410f7386
+    to: step-42cece91
+  - from: step-332c5278
+    to: step-42cece91
+  - from: step-2cb8491a
+    to: step-42cece91
+  - from: step-3b333b99
+    to: step-42cece91
+  - from: step-42cece91
+    to: step-4e8a811e
+  - from: step-4e8a811e
+    to: step-4b310da7
+  - from: step-4b310da7
+    to: step-a2284ae9
+  - from: step-a2284ae9
+    to: step-ae30955a
+  - from: step-ae30955a
+    to: step-c6a2c0f8
+  - from: step-c6a2c0f8
+    to: step-c81bcf41
+  - from: step-c81bcf41
+    to: step-c87599e5
+  - from: step-c87599e5
+    to: step-60de7890
+  - from: step-60de7890
+    to: step-ed71bb99
+  - from: step-ed71bb99
+    to: step-abe6c66f
+  - from: step-abe6c66f
+    to: step-7d9ac5a3
+  - from: step-7d9ac5a3
+    to: step-db0140f4
+  - from: step-db0140f4
+    to: step-eb2a8221
+  - from: step-eb2a8221
+    to: step-fd907e7b
+  - from: step-fd907e7b
+    to: step-9b6a674a
+  - from: step-9b6a674a
+    to: step-76cb90d8
+  - from: step-76cb90d8
+    to: step-d1424ab2
+  - from: step-d1424ab2
+    to: step-0f6a23bd
+  - from: step-0f6a23bd
+    to: step-ba16368a
+  - from: step-ba16368a
+    to: step-1977843b
+  - from: step-1977843b
+    to: step-bc019daa
+  - from: step-bc019daa
+    to: step-16222e2d
+  - from: step-16222e2d
+    to: step-512255cc

@@ -1,63 +1,49 @@
-<p align="center">
-  <img src="media/esam-title-card.png" alt="ESAM — Evolving Software Agent Manager" width="720">
-</p>
+<div align="center">
 
-<p align="center">
-  <strong>Building business at agentic speed.</strong><br>
-  A visual workflow designer and runtime for deterministic, AI-powered business processes.<br>
-  YAML-native. Git-versioned. Hermes-orchestrated.
-</p>
+# ESAM — Evolving Software Agent Manager
 
-<p align="center">
-  <a href="#-demo">📺 Demo</a> •
-  <a href="#-what-it-does">What It Does</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="#-screenshots">Screenshots</a> •
-  <a href="#-use-case-debt-management">Use Case</a> •
-  <a href="#-built-with">Built With</a>
-</p>
+**Building business at agentic speed.**
 
----
+A visual workflow designer and runtime for deterministic, AI-powered business processes.
+YAML-native. Git-versioned. Hermes-orchestrated.
 
-## 📺 Demo
+[What It Does](#-what-it-does) •
+[Architecture](#-architecture) •
+[Quick Start](#-quick-start) •
+[Workflows](#-workflows) •
+[Key Differentiators](#-key-differentiators) •
+[Built With](#-built-with)
 
-**[Watch the 2:19 demo video →](media/esam-hackathon-video.mp4)**
+[📺 Demo Video →](https://github.com/voltomoore/esam/releases)
 
-Follows a debt collection workflow from end to end: assessing debtors via LLM, skip-tracing through NemoClaw, processing payments through Stripe, and escalating to human review — all designed, deployed, and monitored through the ESAM Designer.
+</div>
 
 ---
 
 ## 🧭 What It Does
 
-**ESAM** (Evolving Software Agent Manager) is a platform for building, deploying, and monitoring deterministic agent workflows. It bridges the gap between natural-language intent and production-grade automation.
+**ESAM** is a platform for building, deploying, and monitoring deterministic agent workflows. Business operators — not just engineers — can design visual pipelines with LLM calls, tool executions, human escalation steps, and payment processing — all stored as YAML in Git.
 
-Business operators — not just engineers — can:
+### Use Case: Debt Management
 
-- **Design** visual workflows in a drag-and-drop canvas
-- **Define** every step's prompt, model, tool call, and authority level
-- **Deploy** through Git with full version history and CI/CD
-- **Execute** with complete tracing — every prompt, token, cost, and duration recorded
-- **Escalate** where human judgment is needed, auto-approve where it isn't
+The flagship workflow automates accounts receivable collection:
 
-The result: **the operator stays responsible FOR the loop, not IN it.**
+| Step | Type | Authority | Integration |
+|------|------|-----------|-------------|
+| Assess Debt | LLM Call | Auto | Local LLM |
+| Generate Demand Letter | LLM Call | Auto | Local LLM |
+| Send Email | Tool Call | Auto | SMTP |
+| Skip Trace via NemoClaw | Tool Call | Auto | NVIDIA NemoClaw |
+| Review Assessment | Human Escalation | Elevated | Manager approval |
+| Stripe Payment Gateway | Tool Call | **Elevated** | Stripe API |
+| Wait for Customer Response | Human Escalation | Elevated | Email/SMS |
+| Escalate to Manager | Human Escalation | Escalated | Email notification |
+
+**The operator stays responsible FOR the loop, not IN it.**
 
 ---
 
 ## 🏗️ Architecture
-
-![Architecture](screenshots/architecture.png)
-
-| Layer | Technology | Role |
-|-------|-----------|------|
-| **Agent Orchestrator** | **Hermes Agent** (by Nous Research) | Translates natural language into YAML workflows. Subagent delegation for parallel execution. |
-| **Designer** | FastAPI + Canvas UI | Visual workflow editor. Every drag produces a YAML diff. |
-| **Source of Truth** | Git | All workflows stored as YAML files. Every change is a commit. CI/CD on merge. |
-| **Runtime** | ESAM Runtime | DAG executor with span-based tracing, cost tracking, and step-level state management. |
-| **Sandboxed Agent Runtime** | **NVIDIA NemoClaw** | Security-isolated execution for sensitive steps (skip-tracing, data enrichment). |
-| **Payment Processing** | **Stripe** | Payment gateway with Delegation of Authority — elevated steps require human approval. |
-| **Local Inference** | JIT Model Pool (Gemma 4-12B) | On-demand LLM loading for assessment, drafting, and summarization steps. |
-
-### Data Flow
 
 ```
 Operator Intent
@@ -77,75 +63,94 @@ Operator Intent
               Auto → Elevated (requires approval) → Escalated (manager review)
 ```
 
----
-
-## 🖼️ Screenshots
-
-### Opening Screen
-The designer with no agent selected, light theme enabled.
-![Opening Screen](screenshots/01-opening-screen.png)
-
-### Debt Management Pipeline
-Full 10-step workflow rendered on the canvas — LLM calls, tool calls, human escalation.
-![Debt Management Flow](screenshots/02-debt-management-flow.png)
-
-### LLM Call Editor
-Configure prompts, select models, define response schemas for every LLM step.
-![LLM Editor](screenshots/03-llm-editor.png)
-
-### Stripe Payment Gateway
-Tool call step with Elevated Authority — requires human approval before executing payments.
-![Stripe Elevated](screenshots/04-stripe-gateway.png)
-
-### YAML Editor
-The YAML source of truth open alongside the visual properties panel.
-![YAML Editor](screenshots/05-yaml-editor.png)
-
-### Wait for Customer Response
-Human escalation step — pauses the workflow until the debtor replies or a timeout triggers escalation.
-![Wait for Response](screenshots/06-wait-response.png)
+The **ESAM Runtime** is a DAG executor that:
+- Loads workflows from YAML files
+- Resolves cross-step references (`{{steps.ASSESS.risk_score}}`)
+- Injects credentials via the Credential Broker (never hardcoded)
+- Routes sandboxed tool calls through NemoClaw for security isolation
+- Records full execution traces (prompts, tokens, cost, duration)
+- Supports scheduling, background execution, and webhook triggers
 
 ---
 
-## 💳 Use Case: Debt Management
+## 🚀 Quick Start
 
-Real businesses managing accounts receivable need to:
+### Prerequisites
+- Python 3.11+
+- Git
+- An LLM endpoint (local or remote)
 
-1. **Assess** each debtor's payment history and risk profile (LLM call)
-2. **Generate** demand letters and payment reminders (LLM call)
-3. **Send** via email/SMS (tool call)
-4. **Skip-trace** outdated contact info through NemoClaw (tool call, sandboxed)
-5. **Process** payments through Stripe (tool call, elevated authority)
-6. **Escalate** to human review when automated thresholds are exceeded
+### Setup
 
-ESAM handles every step. Here's the workflow:
+```bash
+git clone https://github.com/voltomoore/esam.git
+cd esam
 
-| Step | Type | Authority | Integration |
-|------|------|-----------|-------------|
-| Assess Debt | LLM Call | Auto | Gemma 4-12B |
-| Generate Demand Letter | LLM Call | Auto | Gemma 4-12B |
-| Send Email | Tool Call | Auto | SMTP |
-| Skip Trace via NemoClaw | Tool Call | Auto | NVIDIA NemoClaw |
-| Review Assessment | Human Escalation | Elevated | Manager approval |
-| Stripe Payment Gateway | Tool Call | **Elevated** | Stripe API |
-| Wait for Customer Response | Human Escalation | Elevated | Email/SMS |
-| Escalate to Manager | Human Escalation | Escalated | Email notification |
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# Edit .env with your LLM endpoint
+
+uvicorn src.api_server:app --reload
+```
+
+Open **`http://localhost:8000`** to access the Designer.
+
+### Seed Demo Data
+
+```bash
+PYTHONPATH=src python3 src/seed_demo_agents.py
+```
+
+Creates three demo workflows: Tether Collections, Customer Support Classifier, and Loan Assessment.
+
+---
+
+## 📂 Project Structure
+
+```
+esam/
+├── src/
+│   ├── api_server.py           # FastAPI application (200+ routes)
+│   ├── workflow_executor.py    # DAG execution engine
+│   ├── workflow_loader.py      # YAML → workflow graph
+│   ├── tool_executor.py        # Tool call execution
+│   ├── sandbox_router.py       # NemoClaw sandbox routing
+│   ├── credential_broker.py    # Credential injection service
+│   ├── auth.py                 # JWT auth + API key management
+│   ├── tracing.py              # Execution span tracing
+│   ├── stripe_link.py          # Stripe payment integration
+│   ├── scheduler/              # Cron + schedule engine
+│   ├── routes/                 # REST endpoint modules
+│   ├── connectors/             # Integration connectors
+│   ├── evaluator.py            # Eval runner + scoring
+│   └── ...                     # 70+ source modules
+├── tests/                      # pytest suite
+├── workflows/                  # Sample workflow YAMLs
+├── out-of-the-box/             # Pre-built workflow templates
+├── schema/                     # JSON Schema for workflows
+├── tools/                      # Tool registry
+├── connectors/                 # Connector manifest
+└── scripts/                    # Utility scripts
+```
 
 ---
 
 ## ✨ Key Differentiators
 
 ### YAML Is the Source of Truth
-No database abstraction layer. The workflow file IS the workflow. You can edit it in the visual designer or in a text editor — same result, same Git commit.
+No database abstraction layer. The YAML file IS the workflow. Edit in the visual designer or a text editor — same result, same Git commit. The database is a cache, not the source.
 
 ### Delegation of Authority, Not Credential Scoping
-Every step defines *who decides* — not just *what* it can access. Auto steps run freely. Elevated steps pause for approval. Escalated steps route to a manager. The AI proposes, the human disposes where it matters.
+Every step defines *who decides* — Auto (runs freely), Elevated (pauses for approval), Escalated (routes to manager). The AI proposes, the human disposes where it matters.
 
 ### Full Execution Traceability
 Every run produces a complete span tree: prompts sent, tokens consumed, costs incurred, durations measured. Append-only, immutable, queryable.
 
 ### Supply-Chain Security
-No magic dependencies. The runtime isolates sensitive tool calls in NemoClaw sandboxes. API keys live in the credential broker, not in workflow definitions.
+Sensitive tool calls are isolated in NemoClaw sandboxes. API keys live in the Credential Broker, not in workflow definitions or environment variables.
 
 ### Local-First
 Runs entirely on your infrastructure. No SaaS dependency. LLM inference, execution, storage — all local.
@@ -154,46 +159,13 @@ Runs entirely on your infrastructure. No SaaS dependency. LLM inference, executi
 
 ## 🛠️ Built With
 
-| Partner | Integration | What It Does |
-|---------|-------------|--------------|
-| **Nous Research — Hermes Agent** | [hermes-agent.nousresearch.com](https://hermes-agent.nousresearch.com/) | Agent orchestration, skill system, subagent delegation. The "brain" that translates intent into workflow YAML. |
-| **NVIDIA NemoClaw** | [build.nvidia.com/nvidia/nemoclaw](https://build.nvidia.com/nvidia/nemoclaw) | Sandboxed agent runtime for security-sensitive steps. Isolates LLM execution from workflow infrastructure. |
-| **Stripe** | [stripe.com](https://stripe.com) | Payment gateway with Delegation of Authority. Every charge requires explicit human approval. |
-| **Gemma 4-12B** | Google / Kaggle | Local LLM inference via JIT model pool for assessment, drafting, and analysis. |
-| **FastAPI** | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | Python web framework powering 200+ REST endpoints. |
-| **Hermes Agent Skill System** | Incubated during this hackathon | Skills for Apple Notes, Reminders, iMessage — proving extensibility. |
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.11+
-- Git
-- Hermes Agent ([install guide](https://hermes-agent.nousresearch.com/docs))
-- API key for your LLM endpoint
-
-### Quick Start
-
-```bash
-# Clone the repo
-git clone https://github.com/voltomoore/esam.git
-cd esam
-
-# Set up the environment
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Configure
-cp .env.example .env
-# Edit .env with your LLM endpoint and Stripe credentials
-
-# Run
-uvicorn app.main:app --reload
-```
-
-Open `http://localhost:8000` to access the Designer.
+| Partner | Integration |
+|---------|-------------|
+| **Nous Research — Hermes Agent** | Agent orchestration, skill system, subagent delegation. Translates intent into workflow YAML. |
+| **NVIDIA NemoClaw** | Sandboxed agent runtime for security-sensitive tool execution. |
+| **Stripe** | Payment gateway with Delegation of Authority approval flow. |
+| **FastAPI** | Python web framework — 200+ REST endpoints. |
+| **SQLite** | Local-first persistence (WAL mode). |
 
 ---
 
@@ -205,12 +177,11 @@ MIT — see [LICENSE](LICENSE).
 
 ## 👤 Team
 
-**Volto Moore** — Evolving Software  
-Hermes Agent of Evolving Software. Building the infrastructure for deterministic agent operations.
+**Volto Moore** — Evolving Software
 
 ---
 
-<p align="center">
+<div align="center">
   <sub>Built for the <strong>Hermes Agent Accelerated Business Hackathon</strong> — NVIDIA × Stripe × Nous Research</sub><br>
   <sub>June 2025</sub>
-</p>
+</div>

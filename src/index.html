@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evolving Software Agent Management — Current</title>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #1a1a1a;
+    --surface-hover: #252525;
+    --border: #2a2a2a;
+    --text: #e0e0e0;
+    --text-dim: #808080;
+    --red: #e53935;
+    --red-dim: #b71c1c;
+    --green: #4caf50;
+    --amber: #ffb300;
+    --blue: #42a5f5;
+    --accent: #e53935;
+    --node-w: 180px;
+    --node-h: 64px;
+    --transition: all 0.25s ease;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    user-select: none;
+  }
+
+  /* ─── Top Bar ─── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    height: 56px;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .topbar h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+  .topbar h1 span { color: var(--red); }
+  .topbar .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .badge.live { background: #1b3a1b; border-color: var(--green); color: var(--green); }
+
+  /* ─── Main Layout ─── */
+  .main { display: flex; height: calc(100vh - 56px); }
+
+  /* ─── Canvas ─── */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 40%, #111 0%, #0a0a0a 100%);
+  }
+  .canvas-wrap svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .node-group { cursor: pointer; }
+  .node-bg {
+    fill: var(--surface);
+    stroke: var(--border);
+    stroke-width: 1.5;
+    rx: 8;
+    ry: 8;
+    transition: var(--transition);
+  }
+  .node-group:hover .node-bg {
+    fill: var(--surface-hover);
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+  .node-group.active .node-bg {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 12px rgba(229, 57, 53, 0.25));
+  }
+  .node-icon { font-size: 18px; }
+  .node-label {
+    fill: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    text-anchor: middle;
+  }
+  .node-sub {
+    fill: var(--text-dim);
+    font-size: 10px;
+    text-anchor: middle;
+  }
+  .node-status {
+    rx: 10;
+    ry: 10;
+  }
+
+  .edge-line {
+    stroke: var(--border);
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+  }
+  .edge-line.active { stroke: var(--accent); stroke-width: 2.5; }
+  .edge-arrow { fill: var(--border); }
+  .edge-line.active + .edge-arrow { fill: var(--accent); }
+
+  .edge-label {
+    fill: var(--text-dim);
+    font-size: 9px;
+    text-anchor: middle;
+  }
+
+  /* ─── Inspection Panel ─── */
+  .inspect-panel {
+    width: 0;
+    overflow: hidden;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    transition: width 0.3s ease;
+  }
+  .inspect-panel.open { width: 400px; }
+  .inspect-inner {
+    width: 400px;
+    height: 100%;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .inspect-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .inspect-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .inspect-close {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+  }
+  .inspect-close:hover { border-color: var(--accent); color: var(--accent); }
+
+  .inspect-section { margin-bottom: 16px; }
+  .inspect-section h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .inspect-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .inspect-row .label { color: var(--text-dim); }
+  .inspect-row .value { color: var(--text); font-weight: 500; }
+  .inspect-row .value.green { color: var(--green); }
+  .inspect-row .value.red { color: var(--red); }
+
+  .code-block {
+    background: #111;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .code-block .keyword { color: #c792ea; }
+  .code-block .string { color: #c3e88d; }
+  .code-block .comment { color: #546e7a; }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .sidebar h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .debtor-card {
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .debtor-card:hover { border-color: var(--accent); }
+  .debtor-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .debtor-amount { font-size: 15px; font-weight: 700; color: var(--red); margin: 4px 0; }
+  .debtor-meta { font-size: 11px; color: var(--text-dim); display: flex; gap: 8px; align-items: center; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+  .dot.waiting { background: var(--amber); }
+  .dot.paid { background: var(--green); }
+  .dot.pending { background: var(--blue); }
+  .dot.escalated { background: var(--red); }
+
+  .step-indicator { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+
+  /* ─── Info Banner ─── */
+  .info-banner {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(26,26,26,0.95);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 11px;
+    color: var(--text-dim);
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .info-banner strong { color: var(--accent); }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ─── Empty State ─── */
+  .empty-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    font-size: 13px;
+    text-align: center;
+    padding: 40px;
+    line-height: 1.6;
+  }
+  .empty-panel .icon { font-size: 32px; margin-bottom: 12px; display: block; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <h1>EVOLVING SOFTWARE <span>AGENT MANAGEMENT</span></h1>
+    <span class="subtitle">Current · Workflow Observability</span>
+  </div>
+  <div class="topbar-right">
+    <span class="badge">Workflow: Tether · Collections</span>
+    <span class="badge live">● Live</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h3>Active Debtors</h3>
+    <div id="debtor-list"></div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-wrap" id="canvas-wrap">
+    <svg id="canvas" viewBox="0 0 1200 700"></svg>
+    <div class="info-banner">Double-click a node to inspect — <strong>click any debtor</strong> to highlight their flow position</div>
+  </div>
+
+  <!-- Inspection Panel -->
+  <div class="inspect-panel" id="inspect-panel">
+    <div class="inspect-inner">
+      <div class="inspect-header">
+        <h2 id="inspect-title">Step Details</h2>
+        <button class="inspect-close" onclick="closeInspect()">✕</button>
+      </div>
+      <div id="inspect-body">
+        <div class="empty-panel">
+          <span><span class="icon">◈</span>Double-click a workflow node<br>to inspect it</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════
+
+const WORKFLOW = [
+  { id: 'ingest', label: 'Invoice\nIngestion', icon: '📄', x: 80, y: 300,
+    detail: {
+      service: 'Hermes Agent',
+      type: 'Deterministic',
+      agent: 'Tether Ingest v1',
+      avgTime: '0.2s',
+      policy: 'ALLOW read:invoices/\nDENY write:*',
+      prompt: 'Parse CSV invoice data:\n- debtor name, email, phone\n- invoice number, amount, due date\nValidate fields, create structured records.',
+      lastRun: '3m ago',
+      successRate: '100%',
+      tokens: '—',
+      model: '—'
+    }
+  },
+  { id: 'analyze', label: 'Debtor\nAnalysis', icon: '🔍', x: 290, y: 300,
+    detail: {
+      service: 'Hermes Memory',
+      type: 'Lookup + Rules',
+      agent: 'Tether Analyzer v1',
+      avgTime: '0.8s',
+      policy: 'ALLOW read:memory/debtors/\nALLOW read:memory/business/',
+      prompt: 'For each debtor:\n- age of debt (days overdue)\n- past payment behavior\n- preferred channel (memory)\n- escalation tier assignment',
+      lastRun: '3m ago',
+      successRate: '100%',
+      tokens: '—',
+      model: 'Rules Engine'
+    }
+  },
+  { id: 'generate', label: 'AI Letter\nGeneration', icon: '✍️', x: 500, y: 300,
+    detail: {
+      service: 'Gemma 4-12B (Local)',
+      type: 'LLM Inference',
+      agent: 'Tether Writer v1',
+      avgTime: '1.2s',
+      policy: 'ALLOW POST /v1/chat/completions\n→ localhost:8000',
+      prompt: 'You are a payment follow-up assistant for [BUSINESS].\nWrite a [TONE] [TYPE] to [DEBTOR] regarding invoice #[INV].\nAmount: $[AMOUNT]. Days overdue: [DAYS].\nInclude payment link. Keep under 150 words.',
+      lastRun: '2m ago',
+      successRate: '100%',
+      tokens: '312 in / 48 out',
+      model: 'gemma-4-12b-it'
+    }
+  },
+  { id: 'stripe', label: 'Payment Link\nGeneration', icon: '💳', x: 710, y: 300,
+    detail: {
+      service: 'Stripe Link CLI',
+      type: 'API Call',
+      agent: 'Tether Payments v1',
+      avgTime: '0.4s',
+      policy: 'ALLOW POST /v1/payment_links\n→ api.stripe.com:443',
+      prompt: 'link-cli spend-request create\n  --payment-method-id <pm_id>\n  --merchant-name "[BUSINESS]"\n  --amount [AMOUNT_CENTS]\n  --request-approval',
+      lastRun: '2m ago',
+      successRate: '100%',
+      tokens: '—',
+      model: '—'
+    }
+  },
+  { id: 'paid', label: 'Payment\nReceived', icon: '✅', x: 920, y: 220,
+    detail: {
+      service: 'Stripe Webhook',
+      type: 'Event-driven',
+      agent: 'Tether Collector v1',
+      avgTime: 'Instant',
+      policy: 'ALLOW GET /v1/payment_links/*\n→ api.stripe.com:443',
+      prompt: 'Handle payment_intent.succeeded event:\n1. Mark debtor as paid\n2. Close escalation schedule\n3. Log outcome to memory\n4. Notify business',
+      lastRun: '1h ago',
+      successRate: '100%',
+      tokens: '—',
+      model: '—'
+    }
+  },
+  { id: 'sms', label: 'Day 7\nSMS Follow-up', icon: '📱', x: 920, y: 380,
+    detail: {
+      service: 'Hermes Cron',
+      type: 'Scheduled (7d)',
+      agent: 'Tether Escalator v1',
+      avgTime: '0.6s',
+      policy: 'ALLOW POST /2010-04-01/Accounts/\n→ api.twilio.com:443',
+      prompt: 'Generate SMS reminder for unpaid invoice:\nHi [DEBTOR], invoice #[INV] for $[AMT]\nis overdue. Quick pay link:\n[STRIPE_LINK]\n- [BUSINESS]',
+      lastRun: '3d ago',
+      successRate: '65%',
+      tokens: '48 in / 22 out',
+      model: 'gemma-4-12b-it'
+    }
+  },
+  { id: 'letter14', label: 'Day 14\nSecond Notice', icon: '📨', x: 1100, y: 380,
+    detail: {
+      service: 'Hermes Cron',
+      type: 'Scheduled (14d)',
+      agent: 'Tether Escalator v1',
+      avgTime: '1.0s',
+      policy: 'ALLOW POST /email → api.resend.com:443',
+      prompt: 'Write firm but professional second notice.\nInvoice #[INV] for $[AMT] remains unpaid.\nThis is overdue by [DAYS] days.\nPayment link: [STRIPE_LINK]\nPlease remit within 7 days to avoid further escalation.',
+      lastRun: '5d ago',
+      successRate: '42%',
+      tokens: '164 in / 78 out',
+      model: 'gemma-4-12b-it'
+    }
+  },
+  { id: 'final30', label: 'Day 30\nFinal Notice', icon: '⚠️', x: 1100, y: 500,
+    detail: {
+      service: 'Hermes Cron',
+      type: 'Scheduled (30d)',
+      agent: 'Tether Escalator v1',
+      avgTime: '1.1s',
+      policy: 'ALLOW POST /email → api.resend.com:443',
+      prompt: 'Write formal final notice.\nInvoice #[INV] for $[AMT] overdue [DAYS] days.\nLast opportunity to pay without further action.\nPayment link: [STRIPE_LINK]\nPlease arrange payment within 14 days.',
+      lastRun: '—',
+      successRate: '28%',
+      tokens: '192 in / 92 out',
+      model: 'gemma-4-12b-it'
+    }
+  }
+];
+
+const DEBTORS = [
+  { id: 'd1', name: 'Acme Corp', amount: 3450, daysOverdue: 18, step: 'sms', status: 'waiting',
+    history: [{ step: 'ingest', at: 'Jun 1' }, { step: 'analyze', at: 'Jun 1' }, { step: 'generate', at: 'Jun 1' }, { step: 'stripe', at: 'Jun 1' }] },
+  { id: 'd2', name: 'Beta LLC', amount: 12000, daysOverdue: 45, step: 'letter14', status: 'escalated',
+    history: [{ step: 'ingest', at: 'May 3' }, { step: 'analyze', at: 'May 3' }, { step: 'generate', at: 'May 3' }, { step: 'stripe', at: 'May 3' }, { step: 'sms', at: 'May 10' }] },
+  { id: 'd3', name: 'Gamma Inc', amount: 850, daysOverdue: 6, step: 'paid', status: 'paid',
+    history: [{ step: 'ingest', at: 'Jun 11' }, { step: 'analyze', at: 'Jun 11' }, { step: 'generate', at: 'Jun 11' }, { step: 'stripe', at: 'Jun 11' }, { step: 'paid', at: 'Jun 12' }] }
+];
+
+// Active edges between nodes
+const EDGES = [
+  { from: 'ingest', to: 'analyze', label: 'CSV parsed' },
+  { from: 'analyze', to: 'generate', label: 'Debtor profile ready' },
+  { from: 'generate', to: 'stripe', label: 'Letter drafted' },
+  { from: 'stripe', to: 'paid', label: 'Link sent' },
+  { from: 'stripe', to: 'sms', label: 'No payment (7d)' },
+  { from: 'sms', to: 'letter14', label: 'No payment (14d)' },
+  { from: 'letter14', to: 'final30', label: 'No payment (30d)' }
+];
+
+// ═══════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const canvas = document.getElementById('canvas');
+const W = 1200, H = 700;
+
+// Clear and set size
+canvas.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+// Build node map
+const nodeMap = {};
+WORKFLOW.forEach(n => nodeMap[n.id] = n);
+
+// Draw edges
+EDGES.forEach(e => {
+  const from = nodeMap[e.from];
+  const to = nodeMap[e.to];
+  if (!from || !to) return;
+
+  const x1 = from.x + 180;
+  const y1 = from.y + 32;
+  const x2 = to.x;
+  const y2 = to.y + 32;
+
+  // Line
+  const line = document.createElementNS(SVG_NS, 'line');
+  line.setAttribute('x1', x1);
+  line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2);
+  line.setAttribute('y2', y2);
+  line.classList.add('edge-line');
+  line.id = `edge-${e.from}-${e.to}`;
+  canvas.appendChild(line);
+
+  // Arrowhead marker
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const ax = x2 - 8;
+  const ay = y2 - 8;
+  const arrow = document.createElementNS(SVG_NS, 'polygon');
+  arrow.setAttribute('points', `0,-4 8,0 0,4`);
+  arrow.setAttribute('transform', `translate(${ax},${ay}) rotate(${angle * 180 / Math.PI})`);
+  arrow.classList.add('edge-arrow');
+  canvas.appendChild(arrow);
+
+  // Label midpoint
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2 - 10;
+  const label = document.createElementNS(SVG_NS, 'text');
+  label.setAttribute('x', mx);
+  label.setAttribute('y', my);
+  label.classList.add('edge-label');
+  label.textContent = e.label;
+  canvas.appendChild(label);
+});
+
+// Draw nodes
+WORKFLOW.forEach(n => {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.classList.add('node-group');
+  g.id = `node-${n.id}`;
+  g.style.cursor = 'pointer';
+
+  const bw = 180, bh = 64;
+
+  // Background rect
+  const rect = document.createElementNS(SVG_NS, 'rect');
+  rect.setAttribute('x', n.x);
+  rect.setAttribute('y', n.y);
+  rect.setAttribute('width', bw);
+  rect.setAttribute('height', bh);
+  rect.classList.add('node-bg');
+  g.appendChild(rect);
+
+  // Status dot
+  const dotStatus = n.id === 'paid' ? 'paid' : n.id.startsWith('final') || n.id === 'letter14' ? 'escalated' : 'pending';
+  const dotColors = { paid: '#4caf50', escalated: '#e53935', pending: '#42a5f5' };
+  const dot = document.createElementNS(SVG_NS, 'circle');
+  dot.setAttribute('cx', n.x + 14);
+  dot.setAttribute('cy', n.y + 14);
+  dot.setAttribute('r', 5);
+  dot.setAttribute('fill', dotColors[dotStatus] || '#808080');
+  g.appendChild(dot);
+
+  // Icon
+  const icon = document.createElementNS(SVG_NS, 'text');
+  icon.setAttribute('x', n.x + 28);
+  icon.setAttribute('y', n.y + 34);
+  icon.classList.add('node-icon');
+  icon.textContent = n.icon;
+  g.appendChild(icon);
+
+  // Label
+  const label = document.createElementNS(SVG_NS, 'text');
+  label.setAttribute('x', n.x + 100);
+  label.setAttribute('y', n.y + 30);
+  label.classList.add('node-label');
+  const lines = n.label.split('\n');
+  label.textContent = lines[0];
+  g.appendChild(label);
+
+  if (lines[1]) {
+    const sub = document.createElementNS(SVG_NS, 'text');
+    sub.setAttribute('x', n.x + 100);
+    sub.setAttribute('y', n.y + 48);
+    sub.classList.add('node-sub');
+    sub.textContent = lines[1];
+    g.appendChild(sub);
+  }
+
+  // Click handler
+  g.addEventListener('click', () => openInspect(n));
+  g.addEventListener('dblclick', () => openInspect(n));
+
+  canvas.appendChild(g);
+});
+
+// ═══════════════════════════════════════════════════
+// INSPECT PANEL
+// ═══════════════════════════════════════════════════
+
+function openInspect(node) {
+  const panel = document.getElementById('inspect-panel');
+  panel.classList.add('open');
+
+  document.getElementById('inspect-title').textContent = `${node.icon} ${node.label.replace('\n', ' ')}`;
+
+  const d = node.detail;
+  const body = document.getElementById('inspect-body');
+  body.innerHTML = `
+    <div class="inspect-section">
+      <h3>Execution Details</h3>
+      <div class="inspect-row"><span class="label">Service</span><span class="value">${d.service}</span></div>
+      <div class="inspect-row"><span class="label">Type</span><span class="value">${d.type}</span></div>
+      <div class="inspect-row"><span class="label">Agent</span><span class="value">${d.agent}</span></div>
+      <div class="inspect-row"><span class="label">Avg. Time</span><span class="value">${d.avgTime}</span></div>
+      <div class="inspect-row"><span class="label">Last Run</span><span class="value">${d.lastRun}</span></div>
+      <div class="inspect-row"><span class="label">Success Rate</span><span class="value ${d.successRate === '100%' ? 'green' : 'red'}">${d.successRate}</span></div>
+    </div>
+    <div class="inspect-section">
+      <h3>Model & Cost</h3>
+      <div class="inspect-row"><span class="label">Model</span><span class="value">${d.model || '—'}</span></div>
+      <div class="inspect-row"><span class="label">Tokens</span><span class="value">${d.tokens}</span></div>
+      <div class="inspect-row"><span class="label">Cost</span><span class="value green">$0.00 (local)</span></div>
+    </div>
+    <div class="inspect-section">
+      <h3>NemoClaw Policy</h3>
+      <div class="code-block">${d.policy.replace(/</g, '&lt;').replace(/\n/g, '<br>').replace(/ALLOW/g, '<span class="keyword">ALLOW</span>').replace(/DENY/g, '<span class="keyword">DENY</span>').replace(/→/g, '<span class="comment">→</span>')}</div>
+    </div>
+    <div class="inspect-section">
+      <h3>Prompt Template</h3>
+      <div class="code-block">${d.prompt.replace(/</g, '&lt;').replace(/\n/g, '<br>').replace(/\[BUSINESS\]/g, '<span class="string">[BUSINESS]</span>').replace(/\[DEBTOR\]/g, '<span class="string">[DEBTOR]</span>').replace(/\[INV\]/g, '<span class="string">[INV]</span>').replace(/\[AMOUNT\]/g, '<span class="string">[AMOUNT]</span>').replace(/\[DAYS\]/g, '<span class="string">[DAYS]</span>').replace(/\[STRIPE_LINK\]/g, '<span class="string">[STRIPE_LINK]</span>').replace(/\[TONE\]/g, '<span class="string">[TONE]</span>').replace(/\[TYPE\]/g, '<span class="string">[TYPE]</span>')}</div>
+    </div>
+  `;
+
+  // Highlight active node
+  document.querySelectorAll('.node-group.active').forEach(el => el.classList.remove('active'));
+  document.getElementById(`node-${node.id}`).classList.add('active');
+}
+
+function closeInspect() {
+  document.getElementById('inspect-panel').classList.remove('open');
+  document.querySelectorAll('.node-group.active').forEach(el => el.classList.remove('active'));
+}
+
+// ═══════════════════════════════════════════════════
+// DEBTOR SIDEBAR
+// ═══════════════════════════════════════════════════
+
+function renderDebtors() {
+  const list = document.getElementById('debtor-list');
+  const statusLabels = { waiting: 'Waiting', paid: 'Paid', escalated: 'Escalated', pending: 'Pending' };
+  const statusDots = { waiting: 'waiting', paid: 'paid', escalated: 'escalated', pending: 'pending' };
+
+  DEBTORS.forEach(d => {
+    const card = document.createElement('div');
+    card.className = 'debtor-card';
+    card.innerHTML = `
+      <div class="debtor-name">
+        <span class="dot ${statusDots[d.status]}"></span>
+        ${d.name}
+      </div>
+      <div class="debtor-amount">$${d.amount.toLocaleString()}</div>
+      <div class="debtor-meta">
+        <span>${d.daysOverdue}d overdue</span>
+        <span>·</span>
+        <span>${statusLabels[d.status]}</span>
+      </div>
+      <div class="step-indicator">At: ${nodeMap[d.step]?.label?.replace('\n', ' ') || d.step}</div>
+    `;
+    card.addEventListener('click', () => {
+      // Highlight the debtor's current step in the flow
+      openInspect(nodeMap[d.step]);
+      // Scroll to node (roughly)
+      const el = document.getElementById(`node-${d.step}`);
+      if (el) {
+        el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    list.appendChild(card);
+  });
+}
+
+renderDebtors();
+</script>
+</body>
+</html>

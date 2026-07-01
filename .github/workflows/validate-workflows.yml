@@ -1,0 +1,16 @@
+name: Validate Workflows
+on:
+  push:
+    paths:
+      - 'workflows/*.yaml'
+  pull_request:
+    paths:
+      - 'workflows/*.yaml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate all workflow YAML files
+        run: bash scripts/ci-validate-workflows.sh

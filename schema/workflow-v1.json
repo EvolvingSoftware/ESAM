@@ -1,0 +1,655 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evolving.software/schemas/workflow-v1.json",
+  "title": "ESAM Workflow Definition",
+  "description": "Schema for ESAM (Evolving Software Agent Management) workflow definitions, the YAML-as-source-of-truth format for agent workflow orchestration.",
+  "type": "object",
+  "required": ["name", "steps"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable name for this workflow",
+      "examples": ["Social Media Manager", "HR Onboarding", "Invoice Processing"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of what the workflow does",
+      "examples": ["Draft, review, schedule, and publish social media content across platforms"]
+    },
+    "version": {
+      "type": "integer",
+      "description": "Workflow definition version number",
+      "default": 1,
+      "minimum": 1,
+      "examples": [1]
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this workflow was created",
+      "examples": ["2026-06-22T00:00:00Z"]
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this workflow was last updated",
+      "examples": ["2026-06-22T00:00:00Z"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for categorising the workflow",
+      "items": {
+        "type": "string"
+      },
+      "examples": [["social-media", "marketing", "publishing"]]
+    },
+    "input_schema": {
+      "type": "object",
+      "description": "Optional JSON Schema (Draft 2020-12) describing expected workflow input variables",
+      "examples": [{"type": "object", "properties": {"platform": {"type": "string"}, "topic": {"type": "string"}}, "required": ["platform", "topic"]}]
+    },
+    "authority": {
+      "$ref": "#/$defs/DelegationOfAuthority",
+      "description": "Default Delegation of Authority applied to all steps unless overridden at the step level"
+    },
+    "tool_instances": {
+      "type": "object",
+      "description": "Map of named tool instances available to tool_call steps in this workflow",
+      "additionalProperties": {
+        "$ref": "#/$defs/ToolInstance"
+      },
+      "examples": [{"social_media_api": {"tool_ref": "social_media_api", "tier": "instance_scoped", "credential_ref": "social-creds-v2", "config": {"rate_limit": 100}}}]
+    },
+    "credentials": {
+      "type": "array",
+      "description": "Credential references used by tool_instances and steps in this workflow (actual secrets stored in vault)",
+      "items": {
+        "$ref": "#/$defs/CredentialReference"
+      },
+      "examples": [[{"id": "social-creds-v2", "type": "oauth2", "ref": "vault://social/prod/twitter"}]]
+    },
+    "steps": {
+      "type": "array",
+      "description": "Ordered list of step definitions in this workflow",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/Step"
+      }
+    },
+    "connections": {
+      "type": "array",
+      "description": "Directed edges between steps defining execution flow",
+      "items": {
+        "$ref": "#/$defs/Connection"
+      },
+      "examples": [[{"from": "step-draft", "to": "step-review"}, {"from": "step-review", "to": "step-schedule", "label": "Approved"}]]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "not": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "steps": false
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "DelegationOfAuthority": {
+      "title": "Delegation of Authority",
+      "description": "Controls what an agent step (or the whole workflow) is permitted to do: cost limits, model restrictions, tool access, and escalation policies",
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "description": "Authority level granted to the agent for this scope",
+          "enum": ["readonly", "standard", "elevated", "admin"],
+          "default": "standard",
+          "examples": ["readonly", "standard", "elevated"]
+        },
+        "cost_limit_cents": {
+          "type": "integer",
+          "description": "Maximum cost in USD cents this scope is allowed to incur before the gate trips",
+          "default": 10,
+          "minimum": 0,
+          "examples": [0, 10, 25, 100]
+        },
+        "hard_gate": {
+          "type": "boolean",
+          "description": "If true, execution is blocked when limits are exceeded; if false, a warning is logged but execution continues",
+          "default": true,
+          "examples": [true, false]
+        },
+        "model_allowlist": {
+          "type": "array",
+          "description": "Explicit list of model identifiers the scope is allowed to use; empty array means no restriction",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "examples": [["gpt-4o", "gemma-4-12b"]]
+        },
+        "output_schema": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional JSON Schema (as a string) constraining the output structure for steps in this scope",
+          "examples": ["{\"type\": \"object\", \"properties\": {\"approved\": {\"type\": \"boolean\"}}}"]
+        },
+        "escalation_contact": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Contact identifier (email, Slack handle, phone) for human escalation when authority level is exceeded",
+          "examples": ["ops@evolving.software", "@ops-oncall"]
+        },
+        "tool_allowlist": {
+          "type": "array",
+          "description": "Optional list of tool instance names this scope is restricted to; absent means all configured tool instances are allowed",
+          "items": {
+            "type": "string"
+          },
+          "examples": [["social_media_api", "email_service"]]
+        },
+        "credential_scope": {
+          "type": "string",
+          "description": "Logical credential scope label for tenant isolation (e.g. \"customer-123\", \"campaign-Q2\")",
+          "examples": ["campaign-Q2", "customer-123"]
+        }
+      }
+    },
+    "ToolInstance": {
+      "title": "Tool Instance",
+      "description": "A configured instance of a registered tool, bound to credentials and environment settings",
+      "type": "object",
+      "required": ["tool_ref", "tier"],
+      "properties": {
+        "tool_ref": {
+          "type": "string",
+          "description": "Reference to a tool in the tool registry",
+          "examples": ["social_media_api", "email_service", "hr_system"]
+        },
+        "tier": {
+          "type": "string",
+          "description": "Lifetime and scope of this tool instance",
+          "enum": ["ephemeral", "instance_scoped", "permanent"],
+          "examples": ["ephemeral", "instance_scoped", "permanent"]
+        },
+        "credential_ref": {
+          "type": "string",
+          "description": "Reference to a credential entry in the workflow's credentials array",
+          "examples": ["social-creds-v2", "email-creds-prod"]
+        },
+        "config": {
+          "type": "object",
+          "description": "Arbitrary configuration key-value pairs passed to the tool at runtime",
+          "examples": [{"rate_limit": 100, "timeout_ms": 5000}]
+        }
+      }
+    },
+    "CredentialReference": {
+      "title": "Credential Reference",
+      "description": "A reference to a secret stored in the vault; never contains the actual secret value",
+      "type": "object",
+      "required": ["id", "type", "ref"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Logical identifier used to reference this credential from tool_instances or steps",
+          "examples": ["social-creds-v2", "email-creds-prod"]
+        },
+        "type": {
+          "type": "string",
+          "description": "Authentication method",
+          "enum": ["api_key", "bearer", "basic", "oauth2", "smtp", "database"],
+          "examples": ["api_key", "bearer", "basic", "oauth2"]
+        },
+        "ref": {
+          "type": "string",
+          "description": "Logical reference path to the actual secret in the vault",
+          "examples": ["vault://social/prod/twitter", "vault://email/prod/smtp"]
+        }
+      }
+    },
+    "Connection": {
+      "title": "Connection",
+      "description": "A directed edge between two steps in the workflow graph",
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source step ID",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*$",
+          "examples": ["step-draft", "step-review"]
+        },
+        "to": {
+          "type": "string",
+          "description": "Target step ID",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*$",
+          "examples": ["step-review", "step-schedule"]
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional display label for this connection edge",
+          "examples": ["Approved", "Identity verified", "Step 1→2"]
+        },
+        "condition": {
+          "type": "string",
+          "description": "Optional expression evaluated at runtime to determine whether this edge is taken",
+          "examples": ["{{steps.step-review.decision}} == 'approved'"]
+        }
+      }
+    },
+    "RetryPolicy": {
+      "title": "Retry Policy",
+      "description": "Configuration for automatic retries when a step fails",
+      "type": "object",
+      "properties": {
+        "max_retries": {
+          "type": "integer",
+          "description": "Maximum number of retry attempts",
+          "minimum": 0,
+          "default": 3,
+          "examples": [3, 5]
+        },
+        "backoff_seconds": {
+          "type": "integer",
+          "description": "Initial backoff duration in seconds before the first retry (exponential backoff applied)",
+          "minimum": 0,
+          "default": 1,
+          "examples": [1, 5, 30]
+        },
+        "on_status_codes": {
+          "type": "array",
+          "description": "HTTP status codes or error codes that trigger a retry; empty array means retry on any failure",
+          "items": {
+            "type": "integer"
+          },
+          "examples": [[429, 500, 502, 503]]
+        }
+      }
+    },
+    "Escalation": {
+      "title": "Escalation",
+      "description": "Configuration for human escalation steps, specifying how and to whom the escalation is sent",
+      "type": "object",
+      "required": ["subject"],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "Subject line for the escalation notification, may contain template variables",
+          "examples": ["Social media post review — {{input.topic}}"]
+        },
+        "body_template": {
+          "type": "string",
+          "description": "Template for the escalation body content",
+          "examples": ["Platform: {{input.platform}}\nDraft: {{steps.step-draft.post_text}}\nAction: Approve, Edit, or Reject"]
+        },
+        "timeout_hours": {
+          "type": "integer",
+          "description": "Maximum time in hours before the escalation auto-expires",
+          "minimum": 1,
+          "default": 24,
+          "examples": [24, 48]
+        },
+        "timeout_minutes": {
+          "type": "integer",
+          "description": "Maximum time in minutes before the escalation auto-expires (alternative to timeout_hours)",
+          "minimum": 1,
+          "examples": [60]
+        },
+        "response_options": {
+          "type": "array",
+          "description": "Available response actions for the human reviewer",
+          "items": {
+            "$ref": "#/$defs/EscalationResponseOption"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "EscalationResponseOption": {
+      "title": "Escalation Response Option",
+      "description": "A single possible response action a human reviewer can take",
+      "type": "object",
+      "required": ["action", "label"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "Machine-readable action identifier",
+          "examples": ["approve", "edit", "reject"]
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable button/link label for this action",
+          "examples": ["Approve and Publish", "Edit and Approve", "Reject with Feedback"]
+        },
+        "next_step": {
+          "type": "string",
+          "description": "Step ID to route to when this action is chosen",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*$",
+          "examples": ["step-schedule", "step-send"]
+        },
+        "require_text": {
+          "type": "boolean",
+          "description": "If true, the reviewer must provide accompanying text (explanation, edits) with this response",
+          "default": false,
+          "examples": [true]
+        }
+      }
+    },
+    "LoopConfig": {
+      "title": "Loop Config",
+      "description": "Configuration for a loop step that iterates over a collection and executes child steps",
+      "type": "object",
+      "required": ["iterator", "source"],
+      "properties": {
+        "iterator": {
+          "type": "string",
+          "description": "Variable name assigned to each element during iteration",
+          "examples": ["item", "lead", "customer"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Expression resolving to the collection to iterate over",
+          "examples": ["{{input.items}}", "{{steps.step-classify.segments}}"]
+        },
+        "max_iterations": {
+          "type": "integer",
+          "description": "Maximum number of iterations before the loop terminates (safety limit)",
+          "minimum": 1,
+          "default": 100,
+          "examples": [50, 100]
+        }
+      }
+    },
+    "Branches": {
+      "title": "Branches",
+      "description": "Branch targets for a conditional step",
+      "type": "object",
+      "required": ["true", "false"],
+      "properties": {
+        "true": {
+          "type": "string",
+          "description": "Step ID to execute when the condition evaluates to true",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*$",
+          "examples": ["step-approve", "step-escalate"]
+        },
+        "false": {
+          "type": "string",
+          "description": "Step ID to execute when the condition evaluates to false",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*$",
+          "examples": ["step-reject", "step-skip"]
+        }
+      }
+    },
+    "StepBaseFields": {
+      "title": "Step Base Fields",
+      "description": "Common properties shared by every step type",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique step identifier within the workflow. Alphanumeric characters and hyphens only.",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*$",
+          "examples": ["step-draft", "step-review", "step-schedule"]
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable label displayed in workflow visualisations",
+          "examples": ["Draft Post", "Review and Approve"]
+        },
+        "position": {
+          "type": "array",
+          "description": "X,Y canvas position for visual workflow editors",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          },
+          "examples": [[0, 0], [400, 0], [260, 220]]
+        },
+        "description": {
+          "type": "string",
+          "description": "Longer description of what this step does",
+          "examples": ["Draft a social media post based on the topic and platform"]
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "description": "Maximum execution time for this step in seconds before it is aborted",
+          "minimum": 1,
+          "examples": [300, 600, 3600]
+        },
+        "retry_policy": {
+          "$ref": "#/$defs/RetryPolicy",
+          "description": "Retry configuration for this step on failure"
+        },
+        "authority": {
+          "$ref": "#/$defs/DelegationOfAuthority",
+          "description": "Step-level Delegation of Authority (overrides workflow-level authority)"
+        }
+      }
+    },
+    "StepTypeFields": {
+      "title": "Step Type Fields",
+      "description": "Properties specific to each step type, discriminated by the type field value",
+      "if": {
+        "properties": {
+          "type": {
+            "const": "llm_call"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "LLM prompt supporting template variable syntax with {{}} and Jinja-like filters",
+            "examples": ["Draft a social media post for {{input.platform}} about: {{input.topic}}"]
+          },
+          "model": {
+            "type": "string",
+            "description": "Model identifier to use for this call",
+            "examples": ["gemma-4-12b", "gpt-4o", "claude-3-opus"]
+          },
+          "temperature": {
+            "type": "number",
+            "description": "LLM sampling temperature (0.0 = deterministic, 2.0 = very creative)",
+            "default": 0.7,
+            "minimum": 0,
+            "maximum": 2,
+            "examples": [0.0, 0.7, 1.0]
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "Maximum tokens in the LLM response",
+            "minimum": 1,
+            "examples": [1024, 4096]
+          }
+        },
+        "required": ["prompt"]
+      },
+      "else": {
+        "if": {
+          "properties": {
+            "type": {
+              "const": "tool_call"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Instruction prompt explaining what the tool should do and how to process its output",
+              "examples": ["Publish to {{input.platform}}: {{steps.step-draft.post_text}}"]
+            },
+            "model": {
+              "type": "string",
+              "description": "Model identifier used for orchestration/planning when invoking the tool",
+              "examples": ["gemma-4-12b", "gpt-4o"]
+            },
+            "tools": {
+              "type": "array",
+              "description": "List of tool instance names (from tool_instances or tool registry) to invoke",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "examples": [["social_media_api"], ["email_service", "accounting_api"]]
+            }
+          },
+          "required": ["prompt", "tools"]
+        },
+        "else": {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "human_escalation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "prompt": {
+                "type": "string",
+                "description": "Context prompt shown to the human reviewer summarising what needs review",
+                "examples": ["Review the following social media post: Platform: {{input.platform}} Draft: {{steps.step-draft.post_text}}"]
+              },
+              "model": {
+                "type": "string",
+                "description": "Model identifier (used for generating escalation summaries or context)",
+                "examples": ["gemma-4-12b", "gpt-4o"]
+              },
+              "escalation": {
+                "$ref": "#/$defs/Escalation",
+                "description": "Escalation configuration including subject, body template, and response options"
+              }
+            },
+            "required": ["prompt", "escalation"]
+          },
+          "else": {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "sub_workflow"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "workflow_ref": {
+                  "type": "string",
+                  "description": "Reference to another workflow definition by name or path",
+                  "examples": ["HR Onboarding", "onboarding/professional-v2"]
+                },
+                "input_mapping": {
+                  "type": "object",
+                  "description": "Map of input variable names to expressions resolving values from the current workflow context",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "examples": [{"new_hire_name": "{{input.employee_name}}", "position": "{{steps.step-identify.position}}"}]
+                }
+              },
+              "required": ["workflow_ref"]
+            },
+            "else": {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "conditional"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "condition": {
+                    "type": "string",
+                    "description": "Boolean expression evaluated at runtime to determine branch routing",
+                    "examples": ["{{steps.step-review.decision}} == 'approved'", "{{input.amount}} > 10000"]
+                  },
+                  "branches": {
+                    "$ref": "#/$defs/Branches",
+                    "description": "Branch targets for true and false outcomes of the condition"
+                  }
+                },
+                "required": ["condition", "branches"]
+              },
+              "else": {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "loop"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "loop_config": {
+                      "$ref": "#/$defs/LoopConfig",
+                      "description": "Loop configuration defining the iterator, source collection, and iteration limits"
+                    },
+                    "child_steps": {
+                      "type": "array",
+                      "description": "Steps to execute inside each loop iteration",
+                      "items": {
+                        "$ref": "#/$defs/Step"
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": ["loop_config", "child_steps"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Step": {
+      "title": "Step",
+      "description": "A single step in the workflow — one of: llm_call, tool_call, human_escalation, sub_workflow, conditional, or loop",
+      "type": "object",
+      "required": ["id", "type"],
+      "allOf": [
+        {
+          "$ref": "#/$defs/StepBaseFields"
+        },
+        {
+          "$ref": "#/$defs/StepTypeFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Step type discriminator",
+          "enum": ["llm_call", "tool_call", "human_escalation", "sub_workflow", "conditional", "loop"],
+          "examples": ["llm_call", "tool_call", "human_escalation"]
+        }
+      }
+    }
+  }
+}

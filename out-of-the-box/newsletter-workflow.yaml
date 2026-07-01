@@ -1,0 +1,250 @@
+name: Evolving Software Intelligence Brief
+description: 'Daily intelligence newsletter: collect sources from web/search, score
+  for relevance, synthesize into a strategic brief, get human approval, and publish
+  via email.
+
+  '
+version: 1
+created: '2026-06-24T00:00:00Z'
+updated: '2026-06-24T00:00:00Z'
+tags:
+- newsletter
+- intelligence
+- daily
+- publishing
+input_schema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: Topic theme for this edition
+    date:
+      type: string
+      description: Edition date (YYYY-MM-DD)
+    recipient:
+      type: string
+      description: Email recipient
+      default: newsletter@evolvingsoftware.com
+  required:
+  - topic
+tool_instances:
+  searxng_search:
+    tool_ref: searxng
+    tier: ephemeral
+  camoufox_scraper:
+    tool_ref: camoufox
+    tier: ephemeral
+  newsletter_db:
+    tool_ref: sqlite_query
+    tier: instance_scoped
+    credential_ref: newsletter-db-path
+    config:
+      db_path: /Users/agent/.hermes/esam/newsletter.db
+      read_only: true
+  email_gateway:
+    tool_ref: send_email
+    tier: permanent
+    credential_ref: newsletter-email-creds
+credentials:
+- id: newsletter-db-path
+  type: database
+  ref: keychain://esam/newsletter-db
+- id: newsletter-email-creds
+  type: smtp
+  ref: keychain://esam/newsletter-smtp
+authority:
+  level: standard
+  cost_limit_cents: 50
+  hard_gate: true
+  model_allowlist:
+  - gemma-4-12b
+  - gemma-uncensored
+  escalation_contact: sebastian@evolving.software
+steps:
+- id: step-collect
+  label: Collect Sources
+  type: llm_call
+  prompt: 'You are an intelligence researcher. For the topic "{{input.topic}}", generate:
+
+
+    1. Three search queries to find recent, relevant content
+
+    2. Three Reddit/HN communities to check for discussion
+
+
+    Return JSON: { search_queries: [string], communities: [string] }
+
+    '
+  model: gemma-4-12b
+  position:
+  - 0
+  - 0
+  authority:
+    level: readonly
+    cost_limit_cents: 5
+- id: step-score
+  label: Score Content
+  type: llm_call
+  prompt: 'Score each item for the newsletter "{{input.topic}}":
+
+
+    Queries: {{steps.step-collect.search_queries | join: ", "}}
+
+    Communities: {{steps.step-collect.communities | join: ", "}}
+
+
+    Criteria:
+
+    - relevance (1-10): how directly it relates to {{input.topic}}
+
+    - novelty (1-10): how new/breaking the information is
+
+    - source_quality (1-10): primary > analysis > social
+
+
+    Return JSON: { items: [{title, url, relevance, novelty, source_quality, score}],
+    top_picks: [string] }
+
+    '
+  model: gemma-4-12b
+  position:
+  - 400
+  - 0
+  authority:
+    level: standard
+    cost_limit_cents: 10
+- id: step-synthesize
+  label: Synthesize Newsletter
+  type: llm_call
+  prompt: 'Write the "{{input.topic}}" intelligence brief for {{input.date}}.
+
+
+    Top picks: {{steps.step-score.top_picks | join: ", "}}
+
+
+    Format:
+
+    ## Today''s System Pattern
+
+    (1 paragraph strategic observation)
+
+
+    ## What Changed
+
+    (3-5 items with: what changed, evidence, why it matters, implication)
+
+
+    ## Weak Signals
+
+    (2-3 emerging but unconfirmed signals)
+
+
+    Return JSON: { subject, body_markdown, key_signals: [string], decision_grade_items:
+    integer }
+
+    '
+  model: gemma-4-12b
+  position:
+  - 800
+  - 0
+  authority:
+    level: standard
+    cost_limit_cents: 20
+    output_schema: '{"type":"object","properties":{"subject":{"type":"string"},"body_markdown":{"type":"string"},"key_signals":{"type":"array","items":{"type":"string"}},"decision_grade_items":{"type":"integer"}},"required":["subject","body_markdown","key_signals","decision_grade_items"]}'
+- id: step-review
+  label: Human Review
+  type: human_escalation
+  prompt: 'Review the {{input.topic}} intelligence brief for {{input.date}}:
+
+
+    Subject: {{steps.step-synthesize.subject}}
+
+
+    {{steps.step-synthesize.body_markdown}}
+
+
+    Key Signals: {{steps.step-synthesize.key_signals | join: ", "}}
+
+    Decision-Grade Items: {{steps.step-synthesize.decision_grade_items}}
+
+
+    Does this meet editorial standards?
+
+    '
+  escalation:
+    subject: '[Newsletter] Review — {{input.topic}} for {{input.date}}'
+    body_template: 'Intelligence Brief Review
+
+      Topic: {{input.topic}}
+
+      Date: {{input.date}}
+
+
+      Subject: {{steps.step-synthesize.subject}}
+
+      Body:
+
+      {{steps.step-synthesize.body_markdown}}
+
+
+      Key Signals: {{steps.step-synthesize.key_signals | join: ", "}}
+
+
+      Action: Approve, Edit, or Reject
+
+      '
+    timeout_hours: 24
+    response_options:
+    - action: approve
+      label: Approve and Send
+      next_step: step-publish
+    - action: edit
+      label: Edit and Approve
+      next_step: step-publish
+      require_text: true
+    - action: reject
+      label: Reject with Feedback
+      require_text: true
+  model: gemma-4-12b
+  position:
+  - 1200
+  - 0
+  authority:
+    level: elevated
+    cost_limit_cents: 5
+- id: step-publish
+  label: Publish Newsletter
+  type: tool_call
+  prompt: 'Send the following intelligence brief via email:
+
+
+    To: {{input.recipient | default: "newsletter@evolvingsoftware.com"}}
+
+    Subject: {{steps.step-synthesize.subject}}
+
+    Body:
+
+    {{steps.step-synthesize.body_markdown}}
+
+    '
+  tools:
+  - email_gateway
+  model: gemma-4-12b
+  position:
+  - 1600
+  - 0
+  authority:
+    level: admin
+    cost_limit_cents: 10
+    tool_allowlist:
+    - email_gateway
+connections:
+- from: step-collect
+  to: step-score
+- from: step-score
+  to: step-synthesize
+- from: step-synthesize
+  to: step-review
+- from: step-review
+  to: step-publish
+  label: Approved

@@ -1,0 +1,99 @@
+name: Accounts Receivable
+description: Assess customer account status, generate statements, review with human, and send payment reminders
+version: 1
+created: "2026-06-22T00:00:00Z"
+updated: "2026-06-22T00:00:00Z"
+
+steps:
+  - id: step-assess
+    label: Customer Assessment
+    type: llm_call
+    prompt: |
+      Assess the accounts receivable status for customer {{input.customer_name}}.
+
+      Current Balance: ${{input.balance}}
+      Invoice Number: {{input.invoice_number}}
+      Due Date: {{input.due_date}}
+      Days Overdue: {{input.days_overdue | default: 0}}
+
+      Return JSON with: { assessment_summary, recommended_action, escalation_required, payment_history_notes }
+    model: gemma-4-12b
+    position: [0, 0]
+
+  - id: step-generate-statement
+    label: Generate Statement
+    type: llm_call
+    prompt: |
+      Generate a professional statement for {{input.customer_name}} based on the assessment:
+
+      Assessment: {{steps.step-assess.assessment_summary}}
+      Balance: ${{input.balance}}
+      Invoice: {{input.invoice_number}}
+
+      Return JSON with: { statement_text, total_due, payment_deadline, late_fees_applied, payment_instructions }
+    model: gemma-4-12b
+    position: [400, 0]
+
+  - id: step-review
+    label: Human Review
+    type: human_escalation
+    prompt: |
+      Review the following accounts receivable statement:
+
+      Customer: {{input.customer_name}}
+      Balance: ${{input.balance}}
+      Assessment: {{steps.step-assess.assessment_summary}}
+      Statement: {{steps.step-generate-statement.statement_text}}
+    escalation:
+      subject: "Receivables review — {{input.customer_name}} — ${{input.balance}}"
+      body_template: |
+        Customer: {{input.customer_name}}
+        Balance: ${{input.balance}}
+        Days Overdue: {{input.days_overdue | default: 0}}
+        Assessment: {{steps.step-assess.assessment_summary}}
+        Recommended Action: {{steps.step-assess.recommended_action}}
+
+        Statement:
+        {{steps.step-generate-statement.statement_text}}
+
+        Total Due: ${{steps.step-generate-statement.total_due}}
+        Payment Deadline: {{steps.step-generate-statement.payment_deadline}}
+
+        Action: Approve, Edit, or Reject
+      timeout_hours: 24
+      response_options:
+        - action: approve
+          label: Approve and Send Reminder
+          next_step: step-send-reminder
+        - action: edit
+          label: Edit and Approve
+          next_step: step-send-reminder
+          require_text: true
+        - action: reject
+          label: Reject with Feedback
+          require_text: true
+    model: gemma-4-12b
+    position: [800, 0]
+
+  - id: step-send-reminder
+    label: Send Reminder
+    type: tool_call
+    prompt: |
+      Send payment reminder to {{input.customer_email}}:
+
+      Customer: {{input.customer_name}}
+      Statement: {{steps.step-generate-statement.statement_text}}
+      Amount Due: ${{steps.step-generate-statement.total_due}}
+      Payment Instructions: {{steps.step-generate-statement.payment_instructions}}
+    tools: ["email_service"]
+    model: gemma-4-12b
+    position: [1200, 0]
+
+connections:
+  - from: step-assess
+    to: step-generate-statement
+  - from: step-generate-statement
+    to: step-review
+  - from: step-review
+    to: step-send-reminder
+    label: Approved

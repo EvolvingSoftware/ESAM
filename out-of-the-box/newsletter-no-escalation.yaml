@@ -1,0 +1,142 @@
+name: Daily Intelligence Brief (No Review)
+description: 'Daily intelligence newsletter: collect sources, synthesize a brief,
+  and publish via email. No human review gate — direct delivery.
+
+  '
+version: 1
+created: '2026-06-24T00:00:00Z'
+updated: '2026-06-24T00:00:00Z'
+tags:
+- newsletter
+- intelligence
+- daily
+- auto-publish
+input_schema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: Topic theme for this edition
+    date:
+      type: string
+      description: Edition date (YYYY-MM-DD)
+    recipient:
+      type: string
+      description: Email recipient
+      default: newsletter@evolvingsoftware.com
+  required:
+  - topic
+tool_instances:
+  searxng_search:
+    tool_ref: searxng
+    tier: ephemeral
+  camoufox_scraper:
+    tool_ref: camoufox
+    tier: ephemeral
+  email_gateway:
+    tool_ref: send_email
+    tier: permanent
+    credential_ref: newsletter-email-creds
+credentials:
+- id: newsletter-email-creds
+  type: smtp
+  ref: keychain://esam/newsletter-smtp
+authority:
+  level: standard
+  cost_limit_cents: 50
+  hard_gate: true
+  model_allowlist:
+  - gemma-4-12b
+  - gemma-uncensored
+steps:
+- id: step-collect
+  label: Collect Sources
+  type: llm_call
+  prompt: 'You are an intelligence researcher. For the topic "{{input.topic}}", generate:
+
+
+    1. Three search queries to find recent, relevant content
+
+    2. Three Reddit/HN communities to check for discussion
+
+
+    Return JSON: { search_queries: [string], communities: [string] }
+
+    '
+  model: gemma-uncensored
+  max_tokens: 256
+  position:
+  - 0
+  - 0
+  authority:
+    level: readonly
+    cost_limit_cents: 5
+- id: step-synthesize
+  label: Synthesize Newsletter
+  type: llm_call
+  prompt: 'Write the "{{input.topic}}" intelligence brief for {{input.date}}.
+
+
+    Collect queries: {{steps.step-collect.search_queries | join: ", "}}
+
+    Communities: {{steps.step-collect.communities | join: ", "}}
+
+
+    Format:
+
+    ## Today''s System Pattern
+
+    (1 paragraph strategic observation)
+
+
+    ## What Changed
+
+    (3-5 items with: what changed, evidence, why it matters, implication)
+
+
+    ## Weak Signals
+
+    (2-3 emerging but unconfirmed signals)
+
+
+    Return JSON: { subject, body_markdown, key_signals: [string] }
+
+    '
+  model: gemma-uncensored
+  max_tokens: 512
+  position:
+  - 400
+  - 0
+  authority:
+    level: standard
+    cost_limit_cents: 20
+- id: step-publish
+  label: Publish Newsletter
+  type: tool_call
+  prompt: 'Send newsletter via email:
+
+    To: {{input.recipient | default: "newsletter@evolvingsoftware.com"}}
+
+    Subject: {{steps.step-synthesize.subject}}
+
+    Body:
+
+    {{steps.step-synthesize.body_markdown}}
+
+    '
+  tools:
+  - email_gateway
+  model: gemma-uncensored
+  position:
+  - 800
+  - 0
+  authority:
+    level: standard
+    cost_limit_cents: 10
+    tool_allowlist:
+    - email_gateway
+connections:
+- from: step-collect
+  to: step-synthesize
+- from: step-synthesize
+  to: step-publish

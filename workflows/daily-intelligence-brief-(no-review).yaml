@@ -1,0 +1,78 @@
+name: Daily Intelligence Brief (No Review)
+description: |
+      Daily intelligence newsletter: collect sources, synthesize a brief, and publish via email. No human review gate — direct delivery.
+      
+version: 19
+created: '2026-06-24T20:27:10.181624+00:00'
+updated: '2026-06-24T21:47:48.085323+00:00'
+
+steps:
+  - id: step-004cb43a
+    label: Collect Sources
+    type: llm_call
+    prompt: |
+      You are an intelligence researcher. For the topic "{{input.topic}}", generate:
+      
+      1. Three search queries to find recent, relevant content
+      2. Three Reddit/HN communities to check for discussion
+      
+      Return JSON: { search_queries: [string], communities: [string] }
+      
+    model: gemma-uncensored
+    position: [260.0, 80.0]
+    authority:
+      level: readonly
+      cost_limit_cents: 5
+      hard_gate: true
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: 
+  - id: step-9382ffca
+    label: Synthesize Newsletter
+    type: llm_call
+    prompt: |
+      Write the "{{input.topic}}" intelligence brief for {{input.date}}.
+      
+      Collect queries: {{steps.step-collect.search_queries | join: ", "}}
+      Communities: {{steps.step-collect.communities | join: ", "}}
+      
+      Format:
+      ## Today's System Pattern
+      (1 paragraph strategic observation)
+      
+      ## What Changed
+      (3-5 items with: what changed, evidence, why it matters, implication)
+      
+      ## Weak Signals
+      (2-3 emerging but unconfirmed signals)
+      
+      Return JSON: { subject, body_markdown, key_signals: [string] }
+      
+    model: gemma-uncensored
+    position: [260.0, 220.0]
+    authority:
+      level: standard
+      cost_limit_cents: 20
+      hard_gate: true
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: 
+  - id: step-d3c8d59c
+    label: Publish Newsletter
+    type: tool_call
+    prompt: |
+      Send newsletter via email:
+      To: {{input.recipient | default: "sebastian@evolving.software"}}
+      Subject: {{steps.step-synthesize.subject}}
+      Body:
+      {{steps.step-synthesize.body_markdown}}
+      
+    tools: ["email_gateway"]
+    model: gemma-uncensored
+    position: [260.0, 360.0]
+
+connections:
+  - from: step-004cb43a
+    to: step-9382ffca
+  - from: step-9382ffca
+    to: step-d3c8d59c

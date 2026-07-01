@@ -1,0 +1,106 @@
+name: CRM Follow-Up
+description: Classify leads, draft personalized introductions, get human approval, and schedule follow-up calls
+version: 1
+created: "2026-06-22T00:00:00Z"
+updated: "2026-06-22T00:00:00Z"
+
+steps:
+  - id: step-classify
+    label: Classify Lead
+    type: llm_call
+    prompt: |
+      Classify the following sales lead:
+
+      Lead Name: {{input.lead_name}}
+      Company: {{input.company}}
+      Industry: {{input.industry | default: "Unknown"}}
+      Lead Source: {{input.lead_source | default: "Inbound"}}
+      Interest Level: {{input.interest_level | default: "Medium"}}
+      Contact Email: {{input.contact_email}}
+
+      Return JSON with: { lead_segment, priority_score, recommended_approach, key_opportunities, followup_urgency }
+    model: gemma-4-12b
+    position: [0, 0]
+
+  - id: step-draft
+    label: Draft Introduction
+    type: llm_call
+    prompt: |
+      Draft a personalized introduction email for:
+
+      Lead: {{input.lead_name}}
+      Company: {{input.company}}
+      Classification: {{steps.step-classify.lead_segment}}
+      Approach: {{steps.step-classify.recommended_approach}}
+      Opportunities: {{steps.step-classify.key_opportunities}}
+
+      Return JSON with: { email_subject, email_body, call_to_action, suggested_talking_points }
+    model: gemma-4-12b
+    position: [400, 0]
+
+  - id: step-review
+    label: Human Review
+    type: human_escalation
+    prompt: |
+      Review the following CRM follow-up introduction:
+
+      Lead: {{input.lead_name}}
+      Company: {{input.company}}
+      Segment: {{steps.step-classify.lead_segment}}
+      Priority: {{steps.step-classify.priority_score}}
+      Draft Subject: {{steps.step-draft.email_subject}}
+      Draft Body: {{steps.step-draft.email_body}}
+    escalation:
+      subject: "CRM follow-up review — {{input.lead_name}} — {{input.company}}"
+      body_template: |
+        Lead: {{input.lead_name}}
+        Company: {{input.company}}
+        Industry: {{input.industry | default: "Unknown"}}
+        Lead Source: {{input.lead_source | default: "Inbound"}}
+        Priority Score: {{steps.step-classify.priority_score}}
+        Recommended Approach: {{steps.step-classify.recommended_approach}}
+
+        Draft Email Subject: {{steps.step-draft.email_subject}}
+        Draft Email Body:
+        {{steps.step-draft.email_body}}
+
+        Suggested Talking Points: {{steps.step-draft.suggested_talking_points}}
+
+        Action: Approve, Edit, or Reject
+      timeout_hours: 24
+      response_options:
+        - action: approve
+          label: Approve and Schedule Call
+          next_step: step-schedule
+        - action: edit
+          label: Edit and Approve
+          next_step: step-schedule
+          require_text: true
+        - action: reject
+          label: Reject with Feedback
+          require_text: true
+    model: gemma-4-12b
+    position: [800, 0]
+
+  - id: step-schedule
+    label: Schedule Call
+    type: tool_call
+    prompt: |
+      Schedule a follow-up call with {{input.lead_name}} at {{input.company}}:
+
+      Contact: {{input.lead_name}} <{{input.contact_email}}>
+      Priority: {{steps.step-classify.priority_score}}
+      Talking Points: {{steps.step-draft.suggested_talking_points}}
+      Suggested Time: {{input.preferred_time | default: "Next business day 10:00 AM"}}
+    tools: ["calendar_api"]
+    model: gemma-4-12b
+    position: [1200, 0]
+
+connections:
+  - from: step-classify
+    to: step-draft
+  - from: step-draft
+    to: step-review
+  - from: step-review
+    to: step-schedule
+    label: Approved

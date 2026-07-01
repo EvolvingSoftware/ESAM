@@ -1,0 +1,202 @@
+name: Daily Intelligence Brief
+description: >
+  Daily intelligence newsletter with ACTUAL tool calls: SearXNG web search,
+  Camoufox page scraping, LLM scoring and synthesis, then email delivery.
+version: 2
+created: "2026-06-25T00:00:00Z"
+updated: "2026-06-25T00:00:00Z"
+tags: ["newsletter", "intelligence", "daily", "auto-publish", "v2"]
+
+input_schema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: "Topic theme for this edition"
+    date:
+      type: string
+      description: "Edition date (YYYY-MM-DD)"
+    recipient:
+      type: string
+      description: "Email recipient"
+      default: "newsletter@evolvingsoftware.com"
+  required: [topic]
+
+tool_instances:
+  searxng_search:
+    tool_ref: searxng
+    tier: ephemeral
+  camoufox_scraper:
+    tool_ref: camoufox
+    tier: ephemeral
+  email_gateway:
+    tool_ref: send_email
+    tier: permanent
+    credential_ref: newsletter-email-creds
+
+credentials:
+  - id: newsletter-email-creds
+    type: smtp
+    ref: keychain://esam/newsletter-smtp
+
+authority:
+  level: standard
+  cost_limit_cents: 100
+  hard_gate: true
+  model_allowlist: ["gemma-uncensored", "gemma-4-12b"]
+
+steps:
+  # ── Step 1: Generate search queries from LLM knowledge ──
+  - id: step-generate-queries
+    label: Generate Search Queries
+    type: llm_call
+    prompt: |
+      You are an intelligence researcher. For the topic "{{input.topic}}", generate:
+
+      1. Five targeted search queries to find recent, high-quality content
+      2. Two specific communities or forums to check
+
+      Return JSON: { search_queries: [string], communities: [string] }
+    model: gemma-uncensored
+    max_tokens: 256
+    position: [0, 0]
+    authority:
+      level: readonly
+      cost_limit_cents: 5
+
+  # ── Step 2: Actually search the web via SearXNG ──
+  - id: step-search-web
+    label: Search Web Sources
+    type: tool_call
+    prompt: |
+      Execute web searches for {{input.topic}} using ALL queries generated in step 1.
+      Return the combined search results with URLs, titles, content snippets, and scores.
+    tools: ["searxng_search"]
+    model: gemma-uncensored
+    position: [0, 400]
+    authority:
+      level: readonly
+      cost_limit_cents: 5
+
+  # ── Step 3: Scrape the top results via Camoufox ──
+  - id: step-scrape-pages
+    label: Scrape Top Pages
+    type: tool_call
+    prompt: |
+      Scrape the top 5 most relevant pages from the search results to extract full content.
+      For each URL, extract the full page text, headings, and key metadata.
+    tools: ["camoufox_scraper"]
+    model: gemma-uncensored
+    position: [0, 800]
+    authority:
+      level: standard
+      cost_limit_cents: 15
+
+  # ── Step 4: Score and rank content ──
+  - id: step-score-content
+    label: Score & Rank Content
+    type: llm_call
+    prompt: |
+      You are a content analyst. Score each search result for the newsletter "{{input.topic}}" ({{input.date}}).
+
+      Below is the real web search data. Each result has a URL, title, content snippet, score, and source engine.
+
+      SEARCH RESULTS:
+      {{steps.step-search-web.output_text}}
+
+      SCRAPED CONTENT:
+      {{steps.step-scrape-pages.output_text}}
+
+      For each item, evaluate:
+      - relevance (1-10): how directly it relates to {{input.topic}}
+      - novelty (1-10): how new/breaking the information is (check publishedDate if available)
+      - source_quality (1-10): primary source > news article > blog > social
+
+      Return ONLY valid JSON:
+      {
+        "items": [
+          {"title": "...", "url": "...", "relevance": 8, "novelty": 7, "source_quality": 9, "score": 8.0, "key_findings": "..."}
+        ],
+        "top_picks": ["Most important title", "Second pick"],
+        "trends_identified": ["Trend 1", "Trend 2"]
+      }
+    model: gemma-uncensored
+    max_tokens: 1024
+    position: [0, 1200]
+    authority:
+      level: standard
+      cost_limit_cents: 20
+
+  # ── Step 5: Synthesize newsletter from actual data ──
+  - id: step-synthesize
+    label: Synthesize Newsletter
+    type: llm_call
+    prompt: |
+      You are an intelligence analyst. Write the "{{input.topic}}" intelligence brief for {{input.date}} using the REAL scored data below.
+
+      SCORED CONTENT (top picks):
+      {{steps.step-score-content.top_picks | join: ", "}}
+
+      TRENDS IDENTIFIED:
+      {{steps.step-score-content.trends_identified | join: ", "}}
+
+      FULL SCORED ITEMS:
+      {{steps.step-score-content.output_text}}
+
+      Write in this format:
+      ## Today's System Pattern
+      (1 paragraph strategic observation based on actual data)
+
+      ## What Changed
+      (3-5 items with: what changed, evidence, why it matters, implication)
+
+      ## Weak Signals
+      (2-3 emerging but unconfirmed signals from the data)
+
+      ## Sources
+      (linked URLs from the real search results — include at least 3)
+
+      Return ONLY valid JSON:
+      {
+        "subject": "Intelligence Brief: Key Finding — Date",
+        "body_markdown": "Full markdown content with all sections...",
+        "key_signals": ["Signal 1", "Signal 2", "Signal 3"],
+        "sources": ["https://url1.com", "https://url2.com"]
+      }
+    model: gemma-uncensored
+    max_tokens: 2048
+    position: [0, 1600]
+    authority:
+      level: standard
+      cost_limit_cents: 25
+
+  # ── Step 6: Publish via email ──
+  - id: step-publish
+    label: Publish Newsletter
+    type: tool_call
+    prompt: |
+      Send the following intelligence brief via email:
+
+      To: {{input.recipient | default: "newsletter@evolvingsoftware.com"}}
+      Subject: {{steps.step-synthesize.subject}}
+      Body:
+      {{steps.step-synthesize.body_markdown}}
+    tools: ["email_gateway"]
+    model: gemma-uncensored
+    position: [0, 2000]
+    authority:
+      level: admin
+      cost_limit_cents: 10
+      tool_allowlist: ["email_gateway"]
+
+connections:
+  - from: step-generate-queries
+    to: step-search-web
+  - from: step-search-web
+    to: step-scrape-pages
+  - from: step-scrape-pages
+    to: step-score-content
+  - from: step-score-content
+    to: step-synthesize
+  - from: step-synthesize
+    to: step-publish

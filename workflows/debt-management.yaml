@@ -1,0 +1,382 @@
+name: Debt Management
+description: |
+      End-to-end debt collection workflow: assess customer account status and overdue amounts,
+      send automated payment reminders via email, escalate to manager after N days or beyond threshold,
+      hand off to NemoClaw sandbox for skip-tracing, process payment via payment gateway,
+      and log all activity with a final case resolution summary.
+      
+      Phases:
+        PHASE 1 - ASSESSMENT:   Assess the debt and check overdue status
+        PHASE 2 - REMINDERS:    Send professional reminders and wait for response
+        PHASE 3 - ESCALATION:   Triage escalation, notify manager and/or NemoClaw skip-tracing
+        PHASE 4 - PAYMENT:      Process payment and log the transaction
+        PHASE 5 - RESOLUTION:   Close the case with a summary
+      
+      Follows the Tether Collections workflow pattern for phased debt collection automation.
+      
+version: 1
+created: '2026-06-29T01:24:28.321707+00:00'
+updated: '2026-06-30T21:35:00.552662+00:00'
+
+steps:
+  - id: step-1048c2ff
+    label: Assess Debt
+    type: llm_call
+    prompt: |
+      You are a debt collection assessment agent. Analyze the following customer account.
+      
+      Customer: {{input.customer_name}}
+      Email: {{input.customer_email}}
+      Invoice: {{input.invoice_number}}
+      Balance: ${{input.balance}}
+      Days Overdue: {{input.days_overdue}}
+      Last Known Address: {{input.last_known_address | default: "Not provided"}}
+      
+      Evaluate:
+      1. Payment risk level (low / medium / high)
+      2. Recommended escalation tier (standard / priority / legal)
+      3. Suggested first communication tone (friendly / professional / firm)
+      4. Any past payment patterns or red flags
+      5. Whether this account qualifies for skip-tracing
+      
+      Return ONLY valid JSON with the following structure:
+      {
+        "assessment_summary": "string",
+        "risk_level": "low|medium|high",
+        "escalation_tier": "standard|priority|legal",
+        "tone": "friendly|professional|firm",
+        "skip_tracing_recommended": true|false,
+        "notes": "string"
+      }
+      
+    model: gpt-4o
+    position: [264.0, 72.0]
+    authority:
+      level: readonly
+      cost_limit_cents: 10
+      hard_gate: false
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: null
+  - id: step-321765bd
+    label: Log Payment Transaction
+    type: tool_call
+    prompt: |
+      Log the payment transaction to the audit trail for case record.
+      
+      Transaction details:
+      - Customer: {{input.customer_name}}
+      - Email: {{input.customer_email}}
+      - Invoice: {{input.invoice_number}}
+      - Amount: ${{input.payment_amount | default: input.balance}}
+      - Transaction ID: {{steps.step-process-payment.transaction_id | default: "N/A"}}
+      - Payment Status: {{steps.step-process-payment.status | default: "completed"}}
+      - Timestamp: {{steps.step-process-payment.timestamp | default: now}}
+      
+      Case context:
+      - Days Overdue at Start: {{input.days_overdue}}
+      - Risk Level: {{steps.step-assess-debt.risk_level}}
+      - Initial Assessment: {{steps.step-assess-debt.assessment_summary}}
+      - Escalation Required: {{steps.step-triage-escalation.branches.true}}
+      
+      Generate a structured log entry with all payment metadata and case resolution details.
+      Include the case outcome, any fees applied, and final status.
+      
+    tools: ["email_gateway"]
+    model: gpt-4o
+    position: [580.0, 80.0]
+    authority:
+      level: standard
+      cost_limit_cents: 5
+      hard_gate: true
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: null
+  - id: step-b3ca11ef
+    label: Check Overdue Status
+    type: condition
+    prompt: ''
+    position: [260.0, 220.0]
+    authority:
+      level: readonly
+      cost_limit_cents: 0
+      hard_gate: false
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: 
+  - id: step-e6a501bb
+    label: Close Case
+    type: llm_call
+    prompt: |
+      Generate a final case closure summary for {{input.customer_name}} — Invoice {{input.invoice_number}}.
+      
+      Initial Details:
+      - Customer: {{input.customer_name}}
+      - Email: {{input.customer_email}}
+      - Invoice: {{input.invoice_number}}
+      - Original Balance: ${{input.balance}}
+      - Days Overdue at Intake: {{input.days_overdue}}
+      
+      Assessment Results:
+      - Summary: {{steps.step-assess-debt.assessment_summary}}
+      - Risk Level: {{steps.step-assess-debt.risk_level}}
+      - Escalation Tier: {{steps.step-assess-debt.escalation_tier}}
+      
+      Actions Taken:
+      - Reminder Sent: Yes (via email_gateway, tone: {{steps.step-assess-debt.tone}})
+      - Response Wait Period: 48 hours
+      - Manager Notified: {{steps.step-escalate-manager.status | default: "Not escalated to manager"}}
+      - NemoClaw Skip-Tracing: {{steps.step-escalate-nemoclaw.status | default: "Not initiated"}}
+      - Payment Processed: {{steps.step-process-payment.status | default: "Not processed"}}
+      - Payment Transaction: {{steps.step-process-payment.transaction_id | default: "N/A"}}
+      
+      Return ONLY valid JSON:
+      {
+        "case_id": "{{input.invoice_number}}-{{now | date: '%Y%m%d'}}",
+        "customer": "{{input.customer_name}}",
+        "invoice": "{{input.invoice_number}}",
+        "original_balance": {{input.balance}},
+        "final_amount_processed": {{steps.step-process-payment.amount | default: 0}},
+        "outcome": "paid|escalated|skip_traced|closed_no_action",
+        "days_to_resolution": {{input.days_overdue}},
+        "assessment_at_close": "string",
+        "escalation_path_taken": "none|manager_only|nemoclaw_only|full_escalation",
+        "closure_notes": "string",
+        "recommendations": ["string"]
+      }
+      
+    model: gpt-4o
+    position: [580.0, 220.0]
+    authority:
+      level: standard
+      cost_limit_cents: 10
+      hard_gate: false
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: null
+  - id: step-239b90b9
+    label: Send Payment Reminder
+    type: tool_call
+    prompt: |
+      Send a professional payment reminder email to {{input.customer_email}}.
+      
+      Subject: Payment Reminder — Invoice {{input.invoice_number}} — ${{input.balance}} Due
+      
+      Tone: {{steps.step-assess-debt.tone}}
+      Customer: {{input.customer_name}}
+      Invoice: {{input.invoice_number}}
+      Amount Due: ${{input.balance}}
+      Days Overdue: {{input.days_overdue}}
+      
+      Include:
+      - A clear subject line referencing the invoice and amount
+      - A professional greeting with the customer's name
+      - The invoice number and amount due prominently displayed
+      - The number of days the payment is overdue
+      - Clear payment instructions with any relevant account details
+      - A polite call to action to remit payment
+      - Contact information for billing inquiries
+      
+      Tone guidance: Use a {{steps.step-assess-debt.tone}} tone appropriate for this customer's situation.
+      Keep the email under 300 words.
+      
+    tools: ["email_gateway"]
+    model: gpt-4o
+    position: [0.0, 360.0]
+    authority:
+      level: standard
+      cost_limit_cents: 5
+      hard_gate: true
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: null
+  - id: step-e64ee891
+    label: Wait for Customer Response
+    type: human_escalation
+    prompt: |
+      The payment reminder has been sent to {{input.customer_name}} ({{input.customer_email}})
+      for Invoice {{input.invoice_number}} in the amount of ${{input.balance}}.
+      {{input.days_overdue}} days overdue.
+      
+      Assessment Summary: {{steps.step-assess-debt.assessment_summary}}
+      Risk Level: {{steps.step-assess-debt.risk_level}}
+      Escalation Tier: {{steps.step-assess-debt.escalation_tier}}
+      
+      Reminder sent with {{steps.step-assess-debt.tone}} tone.
+      
+      Waiting 48 hours for customer response. Please review and confirm the outcome:
+      - Has the customer responded or made a payment?
+      - Should we proceed to escalation or move to payment processing?
+      
+    model: gpt-4o
+    position: [260.0, 500.0]
+    escalation:
+      subject: 'Collection Response Needed — {{input.customer_name}} — Invoice {{input.invoice_number}} — ${{input.balance}}'
+      timeout_minutes: 60
+    authority:
+      level: elevated
+      cost_limit_cents: 0
+      hard_gate: true
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: collections-manager@company.com
+  - id: step-ab04e241
+    label: Triage Escalation
+    type: condition
+    prompt: ''
+    position: [260.0, 640.0]
+    authority:
+      level: standard
+      cost_limit_cents: 0
+      hard_gate: false
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: 
+  - id: step-39f3bb70
+    label: Escalate to Manager
+    type: tool_call
+    prompt: |
+      Send escalation notification to collections manager at {{input.manager_email | default: "manager@company.com"}}.
+      
+      Subject: ESCALATION REQUIRED — {{input.customer_name}} — Invoice {{input.invoice_number}} — ${{input.balance}}
+      
+      Context for escalation:
+      - Customer: {{input.customer_name}}
+      - Email: {{input.customer_email}}
+      - Invoice: {{input.invoice_number}}
+      - Amount: ${{input.balance}}
+      - Days Overdue: {{input.days_overdue}}
+      - Assessment: {{steps.step-assess-debt.assessment_summary}}
+      - Risk Level: {{steps.step-assess-debt.risk_level}}
+      - Escalation Tier: {{steps.step-assess-debt.escalation_tier}}
+      
+      Reason for escalation: Amount exceeds $500 threshold OR overdue beyond 30 days.
+      
+      Include in the email:
+      - Clear subject line indicating escalation is required
+      - All relevant customer and invoice details
+      - Assessment and risk level from the initial analysis
+      - Summary of what has been done so far (reminder sent, waiting period completed)
+      - Action requested: manager to review and determine next steps
+      - Note that NemoClaw skip-tracing will be initiated as the next step
+      
+    tools: ["email_gateway"]
+    model: gpt-4o
+    position: [260.0, 780.0]
+    authority:
+      level: elevated
+      cost_limit_cents: 5
+      hard_gate: true
+      model_allowlist: ["gpt-4o"]
+      output_schema: 
+      escalation_contact: collections-manager@company.com
+  - id: step-69396c5d
+    label: Stripe Payment Gateway
+    type: tool_call
+    prompt: |
+      Process a payment of ${{input.payment_amount | default: input.balance}} from {{input.customer_name}}
+      via the payment gateway.
+      
+      Payment details:
+      - Customer: {{input.customer_name}}
+      - Email: {{input.customer_email}}
+      - Invoice: {{input.invoice_number}}
+      - Amount: ${{input.payment_amount | default: input.balance}}
+      - Currency: USD
+      - Description: Invoice {{input.invoice_number}} — {{input.customer_name}}
+      
+      If no specific payment amount is provided, use the full balance of ${{input.balance}}.
+      
+      Return the transaction result including:
+      - Transaction ID
+      - Amount processed
+      - Status (success / failed / pending)
+      - Timestamp
+      - Payment method used
+      
+    tools: ["payment_gateway"]
+    model: gpt-4o
+    position: [260.0, 920.0]
+    authority:
+      level: elevated
+      cost_limit_cents: 0
+      hard_gate: true
+      model_allowlist: ["gpt-4o"]
+      output_schema: 
+      escalation_contact: finance@company.com
+  - id: step-6da53c06
+    label: NemoClaw Skip-Tracing
+    type: tool_call
+    prompt: |
+      Initiate skip-tracing via NemoClaw sandbox for the following debtor:
+      
+      Customer: {{input.customer_name}}
+      Last Known Email: {{input.customer_email}}
+      Last Known Address: {{input.last_known_address | default: "Not provided"}}
+      Invoice: {{input.invoice_number}}
+      Amount: ${{input.balance}}
+      Days Overdue: {{input.days_overdue}}
+      
+      Assessment context:
+      {{steps.step-assess-debt.assessment_summary}}
+      Risk: {{steps.step-assess-debt.risk_level}}
+      
+      Case notes:
+      - Reminder was sent to {{input.customer_email}} with {{steps.step-assess-debt.tone}} tone
+      - 48-hour waiting period elapsed without resolution
+      - Manager was notified at {{input.manager_email | default: "manager@company.com"}}
+      - Escalation initiated because amount exceeds $500 or overdue > 30 days
+      
+      Request the NemoClaw sandbox to:
+      1. Query credit bureau records for current address and phone
+      2. Search public records for alternative contact information
+      3. Cross-reference utility databases for phone numbers
+      4. Return all findings with confidence scores
+      
+      Return a structured report with any updated contact info found.
+      
+    tools: ["nemoclaw_sandbox"]
+    model: gpt-4o
+    position: [260.0, 1060.0]
+    authority:
+      level: admin
+      cost_limit_cents: 100
+      hard_gate: true
+      model_allowlist: ["gpt-4o"]
+      output_schema: 
+      escalation_contact: legal@company.com
+
+connections:
+  - from: step-1048c2ff
+    to: step-b3ca11ef
+    label: Proceed to overdue check
+  - from: step-b3ca11ef
+    to: step-239b90b9
+    label: Overdue — Send reminder
+  - from: step-b3ca11ef
+    to: step-e6a501bb
+    label: Not overdue — Close case
+  - from: step-239b90b9
+    to: step-e64ee891
+    label: Await customer response
+  - from: step-e64ee891
+    to: step-ab04e241
+    label: No response — Triage escalation
+  - from: step-ab04e241
+    to: step-39f3bb70
+    label: Escalate — Amount > $500 or Days > 30
+  - from: step-ab04e241
+    to: step-69396c5d
+    label: No escalation — Process payment
+  - from: step-39f3bb70
+    to: step-6da53c06
+    label: Initiate skip-tracing
+  - from: step-69396c5d
+    to: step-321765bd
+    label: Log transaction
+  - from: step-6da53c06
+    to: step-e6a501bb
+    label: Skip-tracing complete — Close case
+  - from: step-321765bd
+    to: step-e6a501bb
+    label: Payment logged — Close case

@@ -1,0 +1,6 @@
+[project.scripts]
+esam-connectors = "scripts.connectors_cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["src/tests"]
+pythonpath = ["src"]

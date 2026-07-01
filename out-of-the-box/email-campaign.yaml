@@ -1,0 +1,105 @@
+name: Email Campaign
+description: Segment audience lists, draft marketing campaigns, get human approval, and send to subscribers
+version: 1
+created: "2026-06-22T00:00:00Z"
+updated: "2026-06-22T00:00:00Z"
+
+steps:
+  - id: step-segment
+    label: Segment Audience
+    type: llm_call
+    prompt: |
+      Analyze and segment the email audience for campaign:
+
+      Campaign Name: {{input.campaign_name}}
+      Target Audience: {{input.target_audience}}
+      Audience Size: {{input.audience_size}}
+      Campaign Goal: {{input.campaign_goal | default: "Engagement"}}
+      Previous Campaign: {{input.previous_campaign | default: "None"}}
+
+      Return JSON with: { segments, recommended_segment, personalization_strategy, optimal_send_time }
+    model: gemma-4-12b
+    position: [0, 0]
+
+  - id: step-draft-campaign
+    label: Draft Campaign
+    type: llm_call
+    prompt: |
+      Draft an email campaign for:
+
+      Campaign: {{input.campaign_name}}
+      Audience Segment: {{steps.step-segment.recommended_segment}}
+      Goal: {{input.campaign_goal | default: "Engagement"}}
+      Key Message: {{input.key_message}}
+      Personalization: {{steps.step-segment.personalization_strategy}}
+
+      Return JSON with: { email_subject, email_body_html, email_body_text, cta_text, cta_link }
+    model: gemma-4-12b
+    position: [400, 0]
+
+  - id: step-review
+    label: Human Review
+    type: human_escalation
+    prompt: |
+      Review the following email campaign:
+
+      Campaign: {{input.campaign_name}}
+      Segment: {{steps.step-segment.recommended_segment}}
+      Subject: {{steps.step-draft-campaign.email_subject}}
+      Body: {{steps.step-draft-campaign.email_body_text}}
+    escalation:
+      subject: "Email campaign review — {{input.campaign_name}}"
+      body_template: |
+        Campaign: {{input.campaign_name}}
+        Goal: {{input.campaign_goal | default: "Engagement"}}
+        Target Audience: {{input.target_audience}}
+        Audience Size: {{input.audience_size}}
+        Recommended Segment: {{steps.step-segment.recommended_segment}}
+        Optimal Send Time: {{steps.step-segment.optimal_send_time}}
+
+        Draft Subject: {{steps.step-draft-campaign.email_subject}}
+        Draft Body:
+        {{steps.step-draft-campaign.email_body_html}}
+
+        CTA: {{steps.step-draft-campaign.cta_text}} → {{steps.step-draft-campaign.cta_link}}
+
+        Action: Approve, Edit, or Reject
+      timeout_hours: 24
+      response_options:
+        - action: approve
+          label: Approve and Send
+          next_step: step-send
+        - action: edit
+          label: Edit and Approve
+          next_step: step-send
+          require_text: true
+        - action: reject
+          label: Reject with Feedback
+          require_text: true
+    model: gemma-4-12b
+    position: [800, 0]
+
+  - id: step-send
+    label: Send Campaign
+    type: tool_call
+    prompt: |
+      Send email campaign to segmented audience:
+
+      Campaign: {{input.campaign_name}}
+      Segment: {{steps.step-segment.recommended_segment}}
+      Subject: {{steps.step-draft-campaign.email_subject}}
+      HTML Body: {{steps.step-draft-campaign.email_body_html}}
+      Text Body: {{steps.step-draft-campaign.email_body_text}}
+      CTA: {{steps.step-draft-campaign.cta_text}} ({{steps.step-draft-campaign.cta_link}})
+    tools: ["email_marketing_api"]
+    model: gemma-4-12b
+    position: [1200, 0]
+
+connections:
+  - from: step-segment
+    to: step-draft-campaign
+  - from: step-draft-campaign
+    to: step-review
+  - from: step-review
+    to: step-send
+    label: Approved

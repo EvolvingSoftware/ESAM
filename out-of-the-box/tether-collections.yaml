@@ -1,0 +1,54 @@
+name: Tether Collections
+description: 'Automated debt collection workflow: assess debtor → skip trace → draft letter → send via portal → log payment'
+version: 1
+created: '2026-06-21T03:55:34.400975+00:00'
+updated: '2026-06-21T03:55:34.781865+00:00'
+
+steps:
+  - id: step-9fb2ade0
+    label: Assess Debt
+    type: llm_call
+    prompt: 'Analyze this debt. Customer: {customer_name}, Amount: ${amount}, Invoice: {invoice_number}, Days Overdue: {days_overdue}. Assess risk level and suggest first action.'
+    model: gpt-4o
+    position: [100.0, 100.0]
+  - id: step-2c44950a
+    label: Skip Trace
+    type: tool_call
+    prompt: 'Find current contact information for {customer_name} at {last_known_address}'
+    tools: ["search_web"]
+    model: gpt-4o
+    position: [100.0, 250.0]
+  - id: step-4f129d38
+    label: Draft Letter
+    type: llm_call
+    prompt: 'Based on assessment: {previous_output}, draft a professional debt collection letter for {customer_name} regarding ${amount}'
+    model: gpt-4o
+    position: [100.0, 400.0]
+  - id: step-c3fe1bad
+    label: Send via Portal
+    type: tool_call
+    prompt: 'Send the draft letter to {customer_name} via portal'
+    tools: ["send_email"]
+    model: gpt-4o
+    position: [100.0, 550.0]
+  - id: step-2eb7ec58
+    label: Log Action
+    type: tool_call
+    prompt: 'Log this action to the audit trail: letter sent to {customer_name}'
+    tools: ["format_output"]
+    model: gpt-4o
+    position: [100.0, 700.0]
+
+connections:
+  - from: step-9fb2ade0
+    to: step-2c44950a
+    label: Step 1→2
+  - from: step-2c44950a
+    to: step-4f129d38
+    label: Step 2→3
+  - from: step-4f129d38
+    to: step-c3fe1bad
+    label: Step 3→4
+  - from: step-c3fe1bad
+    to: step-2eb7ec58
+    label: Step 4→5

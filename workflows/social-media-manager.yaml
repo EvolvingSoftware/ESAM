@@ -1,0 +1,56 @@
+name: Social Media Manager
+description: 'Draft, review, schedule, and publish social media content across platforms'
+version: 1
+created: '2026-06-22T21:47:49.680406+00:00'
+updated: '2026-06-23T03:26:19.996494+00:00'
+
+steps:
+  - id: step-3ba96104
+    label: Draft Post
+    type: llm_call
+    prompt: |
+      Draft a social media post for {{input.platform}} about: {{input.topic}}
+      
+      Tone: {{input.tone | default: "professional"}}
+      
+      Return JSON: { post_text, hashtags, suggested_image_description, platform_specific_notes }
+    model: gemma-4-12b
+    position: [260.0, 80.0]
+  - id: step-913e80d0
+    label: Review and Approve
+    type: human_escalation
+    prompt: |
+      Review the following social media post:
+      
+      Platform: {{input.platform}}
+      Draft: {{steps.step-draft.post_text}}
+      Hashtags: {{steps.step-draft.hashtags}}
+    model: gemma-4-12b
+    position: [260.0, 220.0]
+    escalation:
+      subject: 'Social media post review — {{input.topic}}'
+      timeout_minutes: 60
+    authority:
+      level: readonly
+      cost_limit_cents: 0
+      hard_gate: false
+      model_allowlist: []
+      output_schema: 
+      escalation_contact: 
+  - id: step-6fddde65
+    label: Schedule Post
+    type: tool_call
+    prompt: |
+      Publish to {{input.platform}}:
+      {{steps.step-draft.post_text}}
+      {{steps.step-draft.hashtags | join: " "}}
+    tools: ["social_media_api"]
+    model: gemma-4-12b
+    position: [260.0, 360.0]
+    authority:
+      level: elevated
+      cost_limit_cents: 25
+      hard_gate: true
+      model_allowlist: ["gpt-4o"]
+      output_schema: 
+      escalation_contact: ops@evolving.software

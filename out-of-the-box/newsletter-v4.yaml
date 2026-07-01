@@ -1,0 +1,308 @@
+name: Evolving Software Daily Signal v4
+description: >
+  Daily intelligence brief at Evolving Software quality bar: verified sources,
+  deterministic citation map (S001-S100), For Evolving Software analytical framework,
+  article ideas generation, and cross-edition story tracking.
+version: 4
+created: "2026-06-25T00:00:00Z"
+updated: "2026-06-25T00:00:00Z"
+tags: ["newsletter", "intelligence", "daily", "auto-publish", "v4", "deterministic-scoring",
+       "stories", "citation-map", "evolving-software"]
+
+input_schema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: "Topic theme for this intelligence brief"
+      default: "AI agents, enterprise AI adoption, and emerging research"
+    date:
+      type: string
+      description: "Edition date (YYYY-MM-DD)"
+    recipient:
+      type: string
+      description: "Email recipient"
+      default: "newsletter@evolvingsoftware.com"
+  required: [topic]
+
+tool_instances:
+  email_gateway:
+    tool_ref: send_email
+    tier: permanent
+    credential_ref: newsletter-email-creds
+  hn_scraper:
+    tool_ref: hackernews_search
+    tier: temporary
+  reddit_scraper:
+    tool_ref: reddit_search
+    tier: temporary
+  web_scraper:
+    tool_ref: fetch_url
+    tier: temporary
+
+credentials:
+  - id: newsletter-email-creds
+    type: smtp
+    ref: keychain://esam/newsletter-v4-smtp
+
+authority:
+  level: standard
+  cost_limit_cents: 100
+  hard_gate: true
+  model_allowlist: ["gemma-uncensored", "gemma-4-12b"]
+
+steps:
+  # ── Step 1: Fetch from high-signal sources ──
+  - id: step-fetch-hn
+    label: Fetch Hacker News
+    type: tool_call
+    prompt: |
+      Fetch the top 30 stories from Hacker News front page for {{input.date}}.
+      Return each as {url, title, score, comments_count, source="hackernews"}.
+    tools: ["hn_scraper"]
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  - id: step-fetch-reddit
+    label: Fetch Reddit AI
+    type: tool_call
+    prompt: |
+      Fetch top posts from these subreddits for {{input.date}}:
+      r/OpenAI, r/ClaudeAI, r/Anthropic, r/LocalLLaMA, r/AI_Agents, r/singularity,
+      r/MachineLearning, r/deeplearning, r/ChatGPT
+      Return top 10 from each as {url, title, score, comments_count, subreddit, source="reddit"}.
+      Return posts about AI, agents, LLMs, and related topics.
+    tools: ["reddit_scraper"]
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  - id: step-fetch-rss
+    label: Fetch RSS Feeds
+    type: tool_call
+    prompt: |
+      Fetch latest articles from these RSS feeds for {{input.date}}:
+      - Simon Willison's blog (simonwillison.net)
+      - OpenAI blog
+      - Anthropic blog
+      - AWS Machine Learning blog
+      - GitHub blog
+      - MIT Technology Review AI
+      - ArXiv cs.AI / cs.LG latest
+      Return each as {url, title, content_snippet, source="rss"}.
+    tools: ["web_scraper"]
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 2: Dedup against seen_store ──
+  - id: step-dedup
+    label: Dedup URLs
+    type: data_pipeline
+    prompt: |
+      Dedup all fetched items against seen_store.
+      Keep only unseen URLs. Return deduped list.
+    pipeline_config:
+      source_ids: []
+      dedup: true
+      max_items: 200
+      scoring_rules:
+        - rule_key: freshness
+          weight: 0.3
+          source_field: published_date
+          transform: normalize_0_10
+        - rule_key: authority
+          weight: 0.4
+          source_field: domain_tier
+          transform: tier_to_score
+        - rule_key: relevance
+          weight: 0.2
+          source_field: keyword_matches
+          transform: normalize_0_10
+        - rule_key: story_continuity
+          weight: 0.1
+          source_field: is_new_angle
+          transform: boolean
+      top_n: 30
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 3: Fetch full text of top items ──
+  - id: step-scrape-content
+    label: Scrape Article Content
+    type: tool_call
+    prompt: |
+      For each of the top 30 scored items from step-dedup, fetch the full article content.
+      Extract: title, author, date, body_text (first 2000 chars), key_entities (companies, products, people).
+      Return as {url, title, author, date, body_excerpt, key_entities, source}.
+    tools: ["web_scraper"]
+    authority:
+      level: readonly
+      cost_limit_cents: 5
+
+  # ── Step 4: Build citation map ──
+  - id: step-build-citations
+    label: Build Citation Map
+    type: tool_call
+    prompt: |
+      Assign a citation ID (S001, S002, ... S100) to each article.
+      Build a citation map dict: {"S001": {"url": "...", "title": "...", "source": "hackernews", "domain": "..."}}
+      Return the map as JSON.
+    tools: ["web_scraper"]
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 5: Load prior stories from run memory ──
+  - id: step-load-stories
+    label: Load Prior Stories
+    type: memory_read
+    prompt: |
+      Load prior story cards from run memory for cross-edition comparison.
+      Return existing stories with their headline changes and edition count.
+    memory_key: "stories.*"
+    memory_tags: "story"
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 6: LLM Synthesis (Evolving Software quality) ──
+  - id: step-synthesize
+    label: Synthesize Intelligence Brief
+    type: llm_call
+    prompt: |
+      You are the Evolving Software intelligence analyst. Write the daily signal brief for
+      {{input.topic}} on {{input.date}} using the verified, fetched articles and prior stories below.
+
+      VERIFIED ARTICLES (scraped, with citation IDs):
+      {{steps.step-scrape-content.output_text}}
+
+      CITATION MAP:
+      {{steps.step-build-citations.output_text}}
+
+      PRIOR STORIES (for cross-edition tracking):
+      {{steps.step-load-stories.output_text}}
+
+      CRITICAL RULES:
+      1. Every factual claim MUST reference a real, verified article from the VERIFIED ARTICLES above.
+         NEVER invent URLs, companies, products, or claims not present in the provided data.
+      2. Citation IDs (SXXX) must map to actual entries in the CITATION MAP.
+      3. Every signal must follow this structure:
+         **Bold Claim.** Context/Evidence (with citation). *For Evolving Software, this means...* Watch for...
+      4. Cross-edition tracking: when a topic appeared in prior stories, note how this edition's
+         coverage differs (evolved, escalated, resolved, new angle).
+
+      Write in this EXACT format with these sections:
+
+      ## Converging Signals
+      (5-7 signals, each following the structure above. Focus on signals most relevant to
+      Evolving Software's mission: agent orchestration, enterprise AI adoption, governance,
+      determinism, human-in-the-loop architecture.)
+
+      ## Frontier Lab 48h Watch
+      (3-5 specific product/research launches from the past 48 hours. For each: what launched,
+      why it matters, the Evolving Software implication.)
+
+      ## AI Interaction and Psychology
+      (2-3 signals about how humans interact with AI systems. Perception, trust, behavior change,
+      cognitive load.)
+
+      ## Business Architecture and Operating Models
+      (2-3 signals about enterprise adoption patterns, pricing shifts, regulatory changes.)
+
+      ## What Seems To Be Taking Off
+      (2-3 signals about trends gaining momentum. For each: what's happening, why now,
+      the architectural implication.)
+
+      ## Article Ideas for evolvingsoftware.com
+      (3-5 concrete blog post titles based on this edition's signals, suitable for
+      the Evolving Software blog.)
+
+      ## Source Appendix
+      (Deterministic appendix listing every citation ID with its URL, title, and source.
+      Format: S001: Title — URL)
+
+      Return ONLY valid JSON:
+      {
+        "subject": "Evolving Software Daily Signal: [Theme] — Date",
+        "body_markdown": "Full markdown with all sections",
+        "key_signals": ["Signal 1", "Signal 2", ...],
+        "sources": ["https://url1.com", "https://url2.com", ...],
+        "citation_map": {"S001": "url", "S002": "url", ...}
+      }
+    model: gemma-uncensored
+    max_tokens: 4096
+    authority:
+      level: standard
+      cost_limit_cents: 25
+
+  # ── Step 7: Track stories and edition ──
+  - id: step-track-stories
+    label: Track Edition & Stories
+    type: memory_write
+    prompt: |
+      Record this edition. Track each key_signal as a story.
+      For each key_signal, find_or_create in stories engine with headline and source URLs.
+    memory_key: "editions.{{input.date | slugify}}.subject"
+    memory_value: "{{steps.step-synthesize.subject}}"
+    memory_tags: "edition,story"
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 8: Record seen URLs ──
+  - id: step-record-seen
+    label: Record Seen URLs
+    type: data_pipeline
+    prompt: |
+      Record all article URLs from this edition in the seen_store so they won't
+      appear in future editions.
+    pipeline_config:
+      source_ids: []
+      dedup: true
+      max_items: 200
+      top_n: 200
+    authority:
+      level: readonly
+      cost_limit_cents: 1
+
+  # ── Step 9: Publish ──
+  - id: step-publish
+    label: Publish Newsletter
+    type: tool_call
+    prompt: |
+      Send the intelligence brief via email:
+      To: {{input.recipient | default: "newsletter@evolvingsoftware.com"}}
+      Subject: {{steps.step-synthesize.subject}}
+      Body:
+      {{steps.step-synthesize.body_markdown}}
+    tools: ["email_gateway"]
+    model: gemma-uncensored
+    authority:
+      level: admin
+      cost_limit_cents: 10
+      tool_allowlist: ["email_gateway"]
+
+connections:
+  - from: step-fetch-hn
+    to: step-dedup
+  - from: step-fetch-reddit
+    to: step-dedup
+  - from: step-fetch-rss
+    to: step-dedup
+  - from: step-dedup
+    to: step-scrape-content
+  - from: step-scrape-content
+    to: step-build-citations
+  - from: step-build-citations
+    to: step-load-stories
+  - from: step-load-stories
+    to: step-synthesize
+  - from: step-synthesize
+    to: step-track-stories
+  - from: step-track-stories
+    to: step-record-seen
+  - from: step-record-seen
+    to: step-publish

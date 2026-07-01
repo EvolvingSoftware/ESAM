@@ -1,0 +1,87 @@
+name: Invoicing
+description: Generate, review, send, and track invoices for accounts receivable
+version: 1
+created: "2026-06-22T00:00:00Z"
+updated: "2026-06-22T00:00:00Z"
+
+steps:
+  - id: step-generate
+    label: Generate Invoice
+    type: llm_call
+    prompt: |
+      Generate a professional invoice for:
+
+      Customer: {{input.customer_name}}
+      Amount: ${{input.amount}}
+      Description: {{input.description | default: "Services rendered"}}
+      Invoice Number: {{input.invoice_number | default: "INV-001"}}
+
+      Return JSON with: { invoice_html, line_items, total_due, due_date, payment_terms }
+    model: gemma-4-12b
+    position: [0, 0]
+
+  - id: step-review
+    label: Review Invoice
+    type: human_escalation
+    prompt: |
+      Review the following invoice:
+
+      Customer: {{input.customer_name}}
+      Amount: ${{input.amount}}
+      Invoice: {{steps.step-generate.invoice_html}}
+    escalation:
+      subject: "Invoice review — {{input.customer_name}} — ${{input.amount}}"
+      body_template: |
+        Customer: {{input.customer_name}}
+        Amount: ${{input.amount}}
+        Due Date: {{steps.step-generate.due_date}}
+        Payment Terms: {{steps.step-generate.payment_terms}}
+
+        Line Items: {{steps.step-generate.line_items}}
+
+        Action: Approve, Edit, or Reject
+      timeout_hours: 48
+      response_options:
+        - action: approve
+          label: Approve and Send
+          next_step: step-send
+        - action: edit
+          label: Edit and Approve
+          next_step: step-send
+          require_text: true
+        - action: reject
+          label: Reject
+          require_text: true
+    model: gemma-4-12b
+    position: [400, 0]
+
+  - id: step-send
+    label: Send Invoice
+    type: tool_call
+    prompt: |
+      Send invoice to {{input.customer_email}}:
+      {{steps.step-generate.invoice_html}}
+    tools: ["email_service"]
+    model: gemma-4-12b
+    position: [800, 0]
+
+  - id: step-track
+    label: Track Payment
+    type: tool_call
+    prompt: |
+      Register invoice {{input.invoice_number}} for payment tracking:
+      Customer: {{input.customer_name}}
+      Amount: ${{input.amount}}
+      Due: {{steps.step-generate.due_date}}
+    tools: ["accounting_api"]
+    model: gemma-4-12b
+    position: [1200, 0]
+
+connections:
+  - from: step-generate
+    to: step-review
+  - from: step-review
+    to: step-send
+    label: Approved
+  - from: step-send
+    to: step-track

@@ -1,0 +1,115 @@
+name: HR Onboarding
+description: Identify new hire tasks, draft welcome materials, get human approval, and execute onboarding steps
+version: 1
+created: "2026-06-22T00:00:00Z"
+updated: "2026-06-22T00:00:00Z"
+
+steps:
+  - id: step-identify
+    label: Identify New Hire Tasks
+    type: llm_call
+    prompt: |
+      Identify onboarding tasks for the new hire:
+
+      New Hire Name: {{input.new_hire_name}}
+      Position: {{input.position}}
+      Department: {{input.department}}
+      Start Date: {{input.start_date}}
+      Manager: {{input.manager_name}}
+      Employment Type: {{input.employment_type | default: "Full-time"}}
+
+      Return JSON with: { onboarding_tasks, required_documents, equipment_needed, training_required, compliance_checks }
+    model: gemma-4-12b
+    position: [0, 0]
+
+  - id: step-draft-materials
+    label: Draft Welcome Materials
+    type: llm_call
+    prompt: |
+      Draft welcome materials for:
+
+      New Hire: {{input.new_hire_name}}
+      Position: {{input.position}}
+      Department: {{input.department}}
+      Tasks: {{steps.step-identify.onboarding_tasks}}
+      Manager: {{input.manager_name}}
+
+      Return JSON with: { welcome_email_text, first_day_itinerary, department_introduction, benefit_summary, check_list }
+    model: gemma-4-12b
+    position: [400, 0]
+
+  - id: step-review
+    label: Human Review
+    type: human_escalation
+    prompt: |
+      Review the following HR onboarding materials:
+
+      New Hire: {{input.new_hire_name}}
+      Position: {{input.position}}
+      Department: {{input.department}}
+      Start Date: {{input.start_date}}
+      Tasks: {{steps.step-identify.onboarding_tasks}}
+      Welcome Email: {{steps.step-draft-materials.welcome_email_text}}
+    escalation:
+      subject: "HR onboarding review — {{input.new_hire_name}} — {{input.position}}"
+      body_template: |
+        New Hire: {{input.new_hire_name}}
+        Position: {{input.position}}
+        Department: {{input.department}}
+        Start Date: {{input.start_date}}
+        Manager: {{input.manager_name}}
+
+        Onboarding Tasks:
+        {{steps.step-identify.onboarding_tasks}}
+
+        Required Documents: {{steps.step-identify.required_documents}}
+        Equipment Needed: {{steps.step-identify.equipment_needed}}
+
+        Welcome Email:
+        {{steps.step-draft-materials.welcome_email_text}}
+
+        First Day Itinerary:
+        {{steps.step-draft-materials.first_day_itinerary}}
+
+        Action: Approve, Edit, or Reject
+      timeout_hours: 24
+      response_options:
+        - action: approve
+          label: Approve and Execute
+          next_step: step-execute
+        - action: edit
+          label: Edit and Approve
+          next_step: step-execute
+          require_text: true
+        - action: reject
+          label: Reject with Feedback
+          require_text: true
+    model: gemma-4-12b
+    position: [800, 0]
+
+  - id: step-execute
+    label: Execute Onboarding Steps
+    type: tool_call
+    prompt: |
+      Execute onboarding for {{input.new_hire_name}}:
+
+      Position: {{input.position}}
+      Department: {{input.department}}
+      Start Date: {{input.start_date}}
+      Tasks: {{steps.step-identify.onboarding_tasks}}
+      Equipment: {{steps.step-identify.equipment_needed}}
+      Welcome Email: {{steps.step-draft-materials.welcome_email_text}}
+      First Day Itinerary: {{steps.step-draft-materials.first_day_itinerary}}
+      Checklist: {{steps.step-draft-materials.check_list}}
+    tools: ["hr_system"]
+    model: gemma-4-12b
+    position: [1200, 0]
+
+connections:
+  - from: step-identify
+    to: step-draft-materials
+  - from: step-draft-materials
+    to: step-review
+  - from: step-review
+    to: step-execute
+    label: Approved
