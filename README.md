@@ -7,6 +7,7 @@
 A visual workflow designer and runtime for deterministic, AI-powered business processes.
 YAML-native. Git-versioned. Hermes-orchestrated.
 
+[📺 Watch the Demo Video →](media/esam-hackathon-video.mp4) •
 [What It Does](#-what-it-does) •
 [Architecture](#-architecture) •
 [Screenshots](#-screenshots) •
