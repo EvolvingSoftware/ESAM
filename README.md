@@ -7,8 +7,8 @@
 A visual workflow designer and runtime for deterministic, AI-powered business processes.
 YAML-native. Git-versioned. Hermes-orchestrated.
 
-[📺 Watch the Demo Video →](media/esam-hackathon-video.mp4) •
 [What It Does](#-what-it-does) •
+[Watch the Overview](#-watch-the-overview) •
 [Architecture](#-architecture) •
 [Screenshots](#-screenshots) •
 [Quick Start](#-quick-start) •
@@ -39,6 +39,14 @@ The flagship workflow automates accounts receivable collection:
 | Escalate to Manager | Human Escalation | Escalated | Email notification |
 
 **The operator stays responsible FOR the loop, not IN it.**
+
+---
+
+## 📺 Watch the Overview
+
+[![ESAM Demo Video](media/esam-title-card.png)](media/esam-hackathon-video.mp4)
+
+*Click the image above to play the 2:19 demo video — follows a debt collection workflow end-to-end: assessing debtors via LLM, skip-tracing through NemoClaw, processing payments through Stripe, and escalating to human review.*
 
 ---
 
