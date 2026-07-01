@@ -186,7 +186,6 @@ Runs entirely on your infrastructure. No SaaS dependency. LLM inference, executi
 | **Nous Research — Hermes Agent** | Agent orchestration, skill system, subagent delegation. Translates intent into workflow YAML. |
 | **NVIDIA NemoClaw** | Sandboxed agent runtime for security-sensitive tool execution. |
 | **Stripe** | Payment gateway with Delegation of Authority approval flow. |
-| **FastAPI** | Python web framework — 200+ REST endpoints. |
 | **SQLite** | Local-first persistence (WAL mode). |
 
 ---
