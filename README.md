@@ -9,12 +9,10 @@ YAML-native. Git-versioned. Hermes-orchestrated.
 
 [What It Does](#-what-it-does) •
 [Architecture](#-architecture) •
+[Screenshots](#-screenshots) •
 [Quick Start](#-quick-start) •
-[Workflows](#-workflows) •
 [Key Differentiators](#-key-differentiators) •
 [Built With](#-built-with)
-
-[📺 Demo Video →](https://github.com/voltomoore/esam/releases)
 
 </div>
 
@@ -45,6 +43,8 @@ The flagship workflow automates accounts receivable collection:
 
 ## 🏗️ Architecture
 
+![ESAM Architecture](screenshots/architecture.png)
+
 ```
 Operator Intent
       ↓
@@ -70,6 +70,28 @@ The **ESAM Runtime** is a DAG executor that:
 - Routes sandboxed tool calls through NemoClaw for security isolation
 - Records full execution traces (prompts, tokens, cost, duration)
 - Supports scheduling, background execution, and webhook triggers
+
+---
+
+## 🖼️ Screenshots
+
+### Designer — Empty Canvas
+![Opening Screen](screenshots/opening-screen.png)
+
+### Debt Management Pipeline
+![Debt Management Flow](screenshots/debt-management-flow.png)
+
+### LLM Call Editor
+![LLM Editor](screenshots/llm-editor.png)
+
+### Stripe Payment Gateway (Elevated Authority)
+![Stripe Gateway](screenshots/stripe-gateway.png)
+
+### YAML Source of Truth
+![YAML Editor](screenshots/yaml-editor.png)
+
+### Wait for Customer Response (Human Escalation)
+![Wait for Response](screenshots/wait-response.png)
 
 ---
 
@@ -172,12 +194,6 @@ Runs entirely on your infrastructure. No SaaS dependency. LLM inference, executi
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
-
----
-
-## 👤 Team
-
-**Volto Moore** — Evolving Software
 
 ---
 
