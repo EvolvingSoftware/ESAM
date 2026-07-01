@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <div align="center">
 
 # ESAM — Evolving Software Agent Manager
