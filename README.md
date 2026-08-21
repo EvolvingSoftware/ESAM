@@ -1,202 +1,160 @@
-<div align="center">
-
 # ESAM — Evolving Software Agent Manager
 
-**Building business at agentic speed.**
+**Build software with agents without losing sight or control of the system.**
 
-A visual workflow designer and runtime for deterministic, AI-powered business processes.
-YAML-native. Git-versioned. Hermes-orchestrated.
+ESAM is the core platform for creating, running, observing, and evolving agentic
+software. It combines a visual workflow designer with a YAML- and Git-native
+backend so that people, Hermes, Codex, and other coding agents can work on the
+same system through the interface that suits them best.
 
-[What It Does](#-what-it-does) •
-[Architecture](#-architecture) •
-[Screenshots](#-screenshots) •
-[Quick Start](#-quick-start) •
-[Key Differentiators](#-key-differentiators) •
-[Built With](#-built-with)
+> Debt Management and the Intelligence Newsletter are **example products built
+> on ESAM**. They are not ESAM itself. They exist to exercise the platform with
+> realistic workflows and drive development of reusable platform capabilities.
 
-</div>
+## The product model
 
----
-
-## 🧭 What It Does
-
-**ESAM** is a platform for building, deploying, and monitoring deterministic agent workflows. Business operators — not just engineers — can design visual pipelines with LLM calls, tool executions, human escalation steps, and payment processing — all stored as YAML in Git.
-
-### Use Case: Debt Management
-
-The flagship workflow automates accounts receivable collection:
-
-| Step | Type | Authority | Integration |
-|------|------|-----------|-------------|
-| Assess Debt | LLM Call | Auto | Local LLM |
-| Generate Demand Letter | LLM Call | Auto | Local LLM |
-| Send Email | Tool Call | Auto | SMTP |
-| Skip Trace via NemoClaw | Tool Call | Auto | NVIDIA NemoClaw |
-| Review Assessment | Human Escalation | Elevated | Manager approval |
-| Stripe Payment Gateway | Tool Call | **Elevated** | Stripe API |
-| Wait for Customer Response | Human Escalation | Elevated | Email/SMS |
-| Escalate to Manager | Human Escalation | Escalated | Email notification |
-
-**The operator stays responsible FOR the loop, not IN it.**
-
----
-
-## 🏗️ Architecture
-
-![ESAM Architecture](screenshots/architecture.png)
-
-```
-Operator Intent
-      ↓
-[Hermes Agent] ── generates ──→ YAML Workflow (.yaml)
-                                      ↓
-                              [Designer] ── visual editor ──→ Git Commit
-                                      ↓
-                              [ESAM Runtime] ── executes ──→ Traces + State
-                                      ↓
-                          ┌───────────┴───────────┐
-                          ↓                       ↓
-                  [NemoClaw Sandbox]      [Stripe Payment Gateway]
-                  (skip-tracing, data)    (payment processing)
-
-              Every step has a Delegation of Authority level:
-              Auto → Elevated (requires approval) → Escalated (manager review)
+```text
+                         ESAM CORE
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Workflow schema · DAG runtime · authority · credentials      │
+  │ visual designer · Git/YAML · tracing · replay · scheduling   │
+  │ evaluation · connectors · human approval · observability     │
+  └──────────────────────────────────────────────────────────────┘
+                    ▲                         ▲
+                    │ built on                │ built on
+       ┌────────────┴────────────┐  ┌─────────┴────────────────┐
+       │ Debt Management        │  │ Intelligence Newsletter │
+       │ collections and payment│  │ research and publishing │
+       └─────────────────────────┘  └──────────────────────────┘
 ```
 
-The **ESAM Runtime** is a DAG executor that:
-- Loads workflows from YAML files
-- Resolves cross-step references (`{{steps.ASSESS.risk_score}}`)
-- Injects credentials via the Credential Broker (never hardcoded)
-- Routes sandboxed tool calls through NemoClaw for security isolation
-- Records full execution traces (prompts, tokens, cost, duration)
-- Supports scheduling, background execution, and webhook triggers
+### ESAM core
 
----
+The platform owns capabilities that should work for every product:
 
-## 🖼️ Screenshots
+- **Workflow definition:** YAML schemas, graph loading, validation, versioning,
+  and Git-friendly changes.
+- **Execution:** deterministic DAG scheduling around non-deterministic LLM and
+  tool steps, conditions, loops, memory, and subworkflows.
+- **Control:** delegation-of-authority levels, credential brokering, sandboxed
+  tools, budgets, and human approval gates.
+- **Understanding:** live visual state, structured traces, prompts, token/cost
+  data, audit history, replay, and evaluation.
+- **Evolution:** the visual editor and coding agents edit the same declarative
+  source. A backend change made by Hermes or Codex must become visible in the
+  designer; a visual edit must produce a reviewable YAML/Git change.
 
-### Designer — Empty Canvas
-![Opening Screen](screenshots/opening-screen.png)
+### Example products
 
-### Debt Management Pipeline
-![Debt Management Flow](screenshots/debt-management-flow.png)
+| Product | What it tests in ESAM |
+| --- | --- |
+| [Debt Management](examples/debt-management/README.md) | Authority gates, human escalation, credentials, email, payments, accounting, audit, and long-running customer interactions. |
+| [Intelligence Newsletter](examples/intelligence-newsletter/README.md) | Web tools, fan-out/fan-in data pipelines, extraction, citations, scoring, rendering, scheduling, archives, and quality regression. |
 
-### LLM Call Editor
-![LLM Editor](screenshots/llm-editor.png)
+Product-specific code may prove a capability first. Once the capability is
+general, it should move behind an ESAM core interface rather than becoming a
+special case in the runtime.
 
-### Stripe Payment Gateway (Elevated Authority)
-![Stripe Gateway](screenshots/stripe-gateway.png)
+## How agentic development works
 
-### YAML Source of Truth
-![YAML Editor](screenshots/yaml-editor.png)
+ESAM has one system with two equally capable editing surfaces:
 
-### Wait for Customer Response (Human Escalation)
-![Wait for Response](screenshots/wait-response.png)
+```text
+Visual designer ──┐
+                  ├── YAML workflow in Git ── validation ── runtime
+Hermes / Codex ───┘                                  │
+                                                     └── trace/state back to UI
+```
 
----
+1. A person sketches or changes a graph in the designer, or a coding agent
+   edits its YAML and supporting code.
+2. Both paths produce the same versioned representation and pass the same
+   schema and policy checks.
+3. ESAM executes the graph and streams node status, inputs, outputs, approvals,
+   cost, and errors into the visual view.
+4. Traces and evaluations provide evidence for the next human- or agent-made
+   update.
 
-## 🚀 Quick Start
+See [the architecture guide](docs/architecture.md) for component boundaries and
+[the development guide](docs/development.md) for the modularity rules that keep
+the repository usable by coding agents.
 
-### Prerequisites
-- Python 3.11+
-- Git
-- An LLM endpoint (local or remote)
+## Repository map
 
-### Setup
+```text
+src/                 ESAM runtime and platform services
+src/routes/          API boundaries (being extracted from the legacy server)
+src/connectors/      reusable connector implementations
+schema/              workflow contracts
+tools/               tool definitions and authority metadata
+workflows/           active, editable workflow instances
+out-of-the-box/      reusable workflow templates
+examples/            product explanations and product-level scenarios
+tests/               platform and capability tests
+```
+
+Some domain modules are still mixed into `src/`. The target layout and staged
+extraction plan are documented in [docs/architecture.md](docs/architecture.md).
+
+## Current example: Debt Management
+
+The debt-management product demonstrates an end-to-end receivables workflow:
+assessment, reminders, customer response, manager review, skip tracing,
+payments, accounting updates, and a final auditable resolution. Its active
+workflow is [`workflows/debt-management.yaml`](workflows/debt-management.yaml).
+
+Each step declares not only what runs, but who may decide:
+
+- **Readonly / automatic:** observation and bounded inference.
+- **Standard:** approved routine actions within policy and budget.
+- **Elevated:** a hard human approval gate before a consequential action.
+- **Escalated:** ownership is routed to the responsible person or team.
+
+## Current example: Intelligence Newsletter
+
+The newsletter product exercises a very different graph: source collection,
+page extraction, entity and topic processing, cross-reference detection,
+citation verification, narrative synthesis, rendering, delivery, and archive
+comparison. This breadth is intentional—it ensures ESAM core is not designed
+only around the debt-management use case.
+
+## Development status
+
+ESAM is an actively consolidated prototype. The runtime and example products
+are substantial, but installation metadata, API decomposition, and product/core
+boundaries are still being normalized. Do not treat the current security
+defaults as production deployment guidance.
+
+The immediate engineering priorities are:
+
+1. make a clean checkout reproducibly installable and testable;
+2. extract the monolithic API and executor into cohesive modules of roughly
+   300 lines or fewer;
+3. move product-specific behavior into `examples`/product packages and expose
+   reusable behavior through core extension interfaces;
+4. make every backend workflow update round-trip visibly through the designer;
+5. add an end-to-end test for both example products using deterministic fakes.
+
+## Quick start (prototype environment)
+
+Prerequisites are Python 3.11+, Git, and an OpenAI-compatible LLM endpoint.
+The repository does not yet contain complete dependency metadata; correcting
+that is the first item in the development plan. In an environment with the
+project dependencies already installed:
 
 ```bash
-git clone https://github.com/voltomoore/esam.git
-cd esam
-
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
 cp .env.example .env
-# Edit .env with your LLM endpoint
-
-uvicorn src.api_server:app --reload
+PYTHONPATH=src python src/seed_demo_agents.py
+PYTHONPATH=src uvicorn api_server:app --reload
 ```
 
-Open **`http://localhost:8000`** to access the Designer.
+The API is served at `http://localhost:8000`; use `/designer` for the workflow
+designer and `/docs` for the API surface.
 
-### Seed Demo Data
-
-```bash
-PYTHONPATH=src python3 src/seed_demo_agents.py
-```
-
-Creates three demo workflows: Tether Collections, Customer Support Classifier, and Loan Assessment.
-
----
-
-## 📂 Project Structure
-
-```
-esam/
-├── src/
-│   ├── api_server.py           # FastAPI application (200+ routes)
-│   ├── workflow_executor.py    # DAG execution engine
-│   ├── workflow_loader.py      # YAML → workflow graph
-│   ├── tool_executor.py        # Tool call execution
-│   ├── sandbox_router.py       # NemoClaw sandbox routing
-│   ├── credential_broker.py    # Credential injection service
-│   ├── auth.py                 # JWT auth + API key management
-│   ├── tracing.py              # Execution span tracing
-│   ├── stripe_link.py          # Stripe payment integration
-│   ├── scheduler/              # Cron + schedule engine
-│   ├── routes/                 # REST endpoint modules
-│   ├── connectors/             # Integration connectors
-│   ├── evaluator.py            # Eval runner + scoring
-│   └── ...                     # 70+ source modules
-├── tests/                      # pytest suite
-├── workflows/                  # Sample workflow YAMLs
-├── out-of-the-box/             # Pre-built workflow templates
-├── schema/                     # JSON Schema for workflows
-├── tools/                      # Tool registry
-├── connectors/                 # Connector manifest
-└── scripts/                    # Utility scripts
-```
-
----
-
-## ✨ Key Differentiators
-
-### YAML Is the Source of Truth
-No database abstraction layer. The YAML file IS the workflow. Edit in the visual designer or a text editor — same result, same Git commit. The database is a cache, not the source.
-
-### Delegation of Authority, Not Credential Scoping
-Every step defines *who decides* — Auto (runs freely), Elevated (pauses for approval), Escalated (routes to manager). The AI proposes, the human disposes where it matters.
-
-### Full Execution Traceability
-Every run produces a complete span tree: prompts sent, tokens consumed, costs incurred, durations measured. Append-only, immutable, queryable.
-
-### Supply-Chain Security
-Sensitive tool calls are isolated in NemoClaw sandboxes. API keys live in the Credential Broker, not in workflow definitions or environment variables.
-
-### Local-First
-Runs entirely on your infrastructure. No SaaS dependency. LLM inference, execution, storage — all local.
-
----
-
-## 🛠️ Built With
-
-| Partner | Integration |
-|---------|-------------|
-| **Nous Research — Hermes Agent** | Agent orchestration, skill system, subagent delegation. Translates intent into workflow YAML. |
-| **NVIDIA NemoClaw** | Sandboxed agent runtime for security-sensitive tool execution. |
-| **Stripe** | Payment gateway with Delegation of Authority approval flow. |
-| **SQLite** | Local-first persistence (WAL mode). |
-
----
-
-## 📄 License
+## License
 
 MIT — see [LICENSE](LICENSE).
 
----
-
-<div align="center">
-  <sub>Built for the <strong>Hermes Agent Accelerated Business Hackathon</strong> — NVIDIA × Stripe × Nous Research</sub><br>
-  <sub>June 2025</sub>
-</div>
+Built for the Hermes Agent Accelerated Business Hackathon (NVIDIA × Stripe ×
+Nous Research). ESAM is the platform; the included products are its proving
+grounds.
