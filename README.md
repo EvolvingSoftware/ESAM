@@ -81,6 +81,7 @@ the repository usable by coding agents. The
 [codebase map](docs/codebase-map.md) assigns existing modules to those
 boundaries, and the [delivery roadmap](docs/roadmap.md) turns the target
 architecture into sequenced, testable phases.
+the repository usable by coding agents.
 
 ## Repository map
 
