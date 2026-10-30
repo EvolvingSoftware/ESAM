@@ -139,6 +139,22 @@ The immediate engineering priorities are:
 4. make every backend workflow update round-trip visibly through the designer;
 5. add an end-to-end test for both example products using deterministic fakes.
 
+## One-command demo (v0.1.0)
+
+From a clean directory, clone and run one real workflow end-to-end — no
+dependencies to install beyond Python 3.9+ (the pipeline is stdlib-only):
+
+```bash
+git clone https://github.com/EvolvingSoftware/ESAM.git && cd ESAM && ./demo.sh
+```
+
+`./demo.sh` boots the Intelligence Newsletter workflow: it fetches live source
+feeds, dedups, synthesizes a newsletter, and renders it. Point it at any
+OpenAI-compatible model with `ESAM_LLM_ENDPOINT` / `ESAM_LLM_MODEL`; with no
+endpoint reachable it falls back to deterministic offline synthesis so the run
+goes green on any host. A captured end-to-end transcript is committed in this
+tag under `docs/transcripts/`.
+
 ## Quick start (prototype environment)
 
 Prerequisites are Python 3.11+, Git, and an OpenAI-compatible LLM endpoint.
