@@ -1,3 +1,5 @@
+curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.0/install.sh | sh
+
 # ESAM — Evolving Software Agent Manager
 
 **Build software with agents without losing sight or control of the system.**
@@ -10,6 +12,28 @@ same system through the interface that suits them best.
 > Debt Management and the Intelligence Newsletter are **example products built
 > on ESAM**. They are not ESAM itself. They exist to exercise the platform with
 > realistic workflows and drive development of reusable platform capabilities.
+
+## Install (one line)
+
+On a fresh box — no clone, no `.env`, Python 3.11+ — this single command creates
+a virtualenv, installs dependencies, seeds the demo workflow, and boots the API
+on `:8000`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.0/install.sh | sh
+```
+
+When it finishes you get a live dashboard at `http://localhost:8000/designer`
+and the API surface at `http://localhost:8000/docs`. The installer prints the
+served URL and HTML so you can verify it is actually up.
+
+Optional overrides (all env vars, all optional):
+
+| Var | Meaning | Default |
+| --- | --- | --- |
+| `ESAM_TAG` | tag to install | `v0.1.0` |
+| `ESAM_PORT` | API port | `8000` |
+| `ESAM_HOME` | where to extract/launch | `$PWD/esam-<tag>` |
 
 ## The product model
 
@@ -77,16 +101,12 @@ Hermes / Codex ───┘                                  │
 
 See [the architecture guide](docs/architecture.md) for component boundaries and
 [the development guide](docs/development.md) for the modularity rules that keep
-the repository usable by coding agents. The
-[codebase map](docs/codebase-map.md) assigns existing modules to those
-boundaries, and the [delivery roadmap](docs/roadmap.md) turns the target
-architecture into sequenced, testable phases.
 the repository usable by coding agents.
 
-## Repository map
+## Repository layout
 
 ```text
-src/                 ESAM runtime and platform services
+src/api_server.py    FastAPI app + static dashboard (entrypoint)
 src/routes/          API boundaries (being extracted from the legacy server)
 src/connectors/      reusable connector implementations
 schema/              workflow contracts
@@ -155,26 +175,6 @@ endpoint reachable it falls back to deterministic offline synthesis so the run
 goes green on any host. A captured end-to-end transcript is committed in this
 tag under `docs/transcripts/`.
 
-## Quick start (prototype environment)
-
-Prerequisites are Python 3.11+, Git, and an OpenAI-compatible LLM endpoint.
-The repository does not yet contain complete dependency metadata; correcting
-that is the first item in the development plan. In an environment with the
-project dependencies already installed:
-
-```bash
-cp .env.example .env
-PYTHONPATH=src python src/seed_demo_agents.py
-PYTHONPATH=src uvicorn api_server:app --reload
-```
-
-The API is served at `http://localhost:8000`; use `/designer` for the workflow
-designer and `/docs` for the API surface.
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-Built for the Hermes Agent Accelerated Business Hackathon (NVIDIA × Stripe ×
-Nous Research). ESAM is the platform; the included products are its proving
-grounds.
