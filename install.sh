@@ -52,13 +52,12 @@ mkdir -p "$BASE_DIR"
 tar -xzf "$TMP/esam.tgz" -C "$TMP"
 
 # GitHub archives wrap files in a top-level dir (ESAM-<tag>/); git archive may not.
-ENTRIES="$(find "$TMP" -mindepth 1 -maxdepth 1 | wc -l)"
-TOPDIR="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
-if [ "$ENTRIES" = "1" ] && [ -n "$TOPDIR" ]; then
-    SRC="$TOPDIR"
-else
-    SRC="$TMP"
+# Locate the source root by finding requirements.txt (robust to any wrapping).
+REQFIND="$(find "$TMP" -maxdepth 2 -name requirements.txt | head -n1 || true)"
+if [ -z "$REQFIND" ]; then
+    fail "requirements.txt missing from tarball — bad archive."
 fi
+SRC="$(dirname "$REQFIND")"
 cp -a "$SRC"/. "$BASE_DIR"/
 say "Extracted to ${BASE_DIR}"
 cd "$BASE_DIR"
