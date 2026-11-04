@@ -1,0 +1,10 @@
+# ESAM — runtime dependencies (Python 3.11+)
+# Minimal set required to import src/api_server.py and boot the API.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+cryptography>=42.0
+PyJWT>=2.8
+passlib>=1.7.4
+markdown>=3.5
+PyYAML>=6.0

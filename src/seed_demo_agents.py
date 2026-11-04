@@ -8,13 +8,14 @@ Requires the API server to be running at http://localhost:8008.
 Idempotent: safe to re-run — checks if agents already exist by name.
 """
 
+import os
 import json
 import sys
 import time
 import urllib.request
 import urllib.error
 
-BASE = "http://localhost:8008"
+BASE = os.environ.get("ESAM_API_BASE", "http://localhost:8000").rstrip("/")
 
 # ────────────────────────────────────────────────────────────────────────────
 # API helpers
