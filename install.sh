@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
-# ESAM one-line installer — pulls v0.1.0 from the public repo, builds a venv,
-# boots the API on :8000 (override with ESAM_PORT), seeds the demo workflow.
+# ESAM one-line installer — pulls a git ref from the public repo, builds a venv,
+# boots the API (default :8000), seeds the demo workflow.
 #
-#   curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.0/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.1/install.sh | sh
 #
+# Optional env overrides (all optional): ESAM_TAG — git ref to install
+# (tag, branch or commit; default v0.1.1) · ESAM_PORT — API port (default 8000)
+# · ESAM_HOME — directory to extract into and launch from (created if missing;
+# default $PWD/esam-<tag> with any leading v stripped, e.g. ./esam-0.1.1).
 # POSIX-sh compatible: safe to pipe into `sh` (dash) or run directly under bash.
 set -eu
 
-TAG="v0.1.0"
+TAG="${ESAM_TAG:-v0.1.1}"
 REPO="EvolvingSoftware/ESAM"
 PORT="${ESAM_PORT:-8000}"
-BASE_DIR="$(pwd)/esam-${TAG#v}"   # ./esam-0.1.0  (no clone, no .env required)
+BASE_DIR="${ESAM_HOME:-$(pwd)/esam-${TAG#v}}"   # default: ./esam-<tag> (no clone, no .env required)
 
 say() { printf '\n\x1b[1;34m== %s ==\x1b[0m\n' "$*"; }
 fatal() { printf '\n\x1b[1;31mERROR: %s\x1b[0m\n' "$*" >&2; exit 1; }
@@ -24,7 +28,7 @@ done
 [ -n "$PY" ] || fatal "Python 3.11+ not found on PATH (looked for python3.12/3.11/python3)."
 say "using $("$PY" --version)"
 
-# ── 2. Fetch the v0.1.0 source tarball from the public repo ───────────────────
+# ── 2. Fetch the source tarball for $TAG from the public repo
 # curl honours CURL_CA_BUNDLE / SSL_CERT_FILE automatically, so no extra flags needed.
 say "Downloading ${REPO} @ ${TAG}"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
@@ -86,6 +90,7 @@ Dashboard : http://localhost:${PORT}/
 OpenAPI   : http://localhost:${PORT}/openapi.json
 Docs      : http://localhost:${PORT}/docs
 Home dir  : $(pwd)
+Installed : ${REPO} @ ${TAG}
 API log   : $(pwd)/api.log (pid ${API_PID})
 Stop it   : kill ${API_PID}
 EOF

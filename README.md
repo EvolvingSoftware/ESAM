@@ -1,4 +1,4 @@
-curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.1/install.sh | sh
 
 # ESAM — Evolving Software Agent Manager
 
@@ -20,7 +20,7 @@ a virtualenv, installs dependencies, seeds the demo workflow, and boots the API
 on `:8000`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.1/install.sh | sh
 ```
 
 When it finishes you get a live dashboard at `http://localhost:8000/designer`
@@ -31,9 +31,9 @@ Optional overrides (all env vars, all optional):
 
 | Var | Meaning | Default |
 | --- | --- | --- |
-| `ESAM_TAG` | tag to install | `v0.1.0` |
-| `ESAM_PORT` | API port | `8000` |
-| `ESAM_HOME` | where to extract/launch | `$PWD/esam-<tag>` |
+| `ESAM_TAG` | git ref to install (tag, branch, or commit) | `v0.1.1` |
+| `ESAM_PORT` | API port the server binds | `8000` |
+| `ESAM_HOME` | directory to extract into and launch from (created if missing) | `$PWD/esam-<tag>` — tag with any leading `v` stripped, e.g. `./esam-0.1.1` |
 
 ## The product model
 
@@ -159,7 +159,7 @@ The immediate engineering priorities are:
 4. make every backend workflow update round-trip visibly through the designer;
 5. add an end-to-end test for both example products using deterministic fakes.
 
-## One-command demo (v0.1.0)
+## One-command demo (v0.1.1)
 
 From a clean directory, clone and run one real workflow end-to-end — no
 dependencies to install beyond Python 3.9+ (the pipeline is stdlib-only):
