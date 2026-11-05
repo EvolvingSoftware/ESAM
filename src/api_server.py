@@ -378,9 +378,14 @@ def delete_api_key_endpoint(key_id: str):
 @app.get("/")
 def root():
     """Serve the Current dashboard SPA."""
-    html_path = SRC / ".." / "current" / "dashboard.html"
-    if html_path.exists():
-        return HTMLResponse(html_path.read_text())
+    # The shipped dashboard lives at src/index.html. Fall back to the legacy
+    # current/dashboard.html location, then a JSON status if neither exists.
+    for candidate in (SRC / "index.html", SRC / ".." / "current" / "dashboard.html"):
+        try:
+            if candidate.exists():
+                return HTMLResponse(candidate.read_text())
+        except OSError:
+            continue
     return {"status": "ok", "message": "ES Agent Management API"}
 
 
