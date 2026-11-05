@@ -13,6 +13,8 @@ same system through the interface that suits them best.
 > on ESAM**. They are not ESAM itself. They exist to exercise the platform with
 > realistic workflows and drive development of reusable platform capabilities.
 
+> **New here?** Follow [QUICKSTART.md](./QUICKSTART.md): one command to a verified first run.
+
 ## Install (one line)
 
 On a fresh box — no clone, no `.env`, Python 3.11+ — this single command creates
