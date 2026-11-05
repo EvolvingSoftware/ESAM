@@ -53,7 +53,7 @@ say "Starting API on port ${PORT}"
 if command -v ss >/dev/null 2>&1 && ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE ":${PORT}\$"; then
     say "WARNING: something is already listening on :${PORT}; the API may fail to bind."
 fi
-nohup ./.venv/bin/python -m uvicorn api_server:app --host 0.0.0.0 --port "$PORT" >api.log 2>&1 < /dev/null &
+PYTHONPATH=src nohup ./.venv/bin/python -m uvicorn api_server:app --host 0.0.0.0 --port "$PORT" >api.log 2>&1 < /dev/null &
 API_PID=$!
 echo "api pid ${API_PID} (log: $(pwd)/api.log)"
 
