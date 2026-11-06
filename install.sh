@@ -78,6 +78,12 @@ done
 [ -n "$up" ] || { echo "API did not come up on :${PORT} — last log lines:" >&2; tail -n 40 api.log >&2 || true; exit 1; }
 say "API is serving (FastAPI OpenAPI schema confirmed on :${PORT})."
 
+# ── 6b. Persist runtime env for the ./esam CLI ───────────────────────────────
+cat > esam.env <<ENVEOF
+ESAM_API_BASE="http://localhost:${PORT}"
+ESAM_PORT="${PORT}"
+ENVEOF
+
 # ── 6. Seed the demo workflow against the running API ────────────────────────
 say "Seeding demo workflow"
 ESAM_API_BASE="http://localhost:${PORT}" PYTHONPATH=src ./.venv/bin/python src/seed_demo_agents.py \
@@ -97,3 +103,10 @@ EOF
 printf '\n--- served dashboard HTML (first 600 bytes of /) ---\n'
 curl -fsS "http://localhost:${PORT}/" 2>/dev/null | head -c 600 || echo "(no HTML at / — check the docs/openapi routes above)"
 printf '\n--- end ---\n'
+
+# ── 8. Quickstart: one-command demo ────────────────────────────────────────
+say "Quickstart ready — run the demo workflow with a single command:"
+cat <<QEOF
+  cd ${BASE_DIR}
+  ./esam demo        # seeds (if needed), runs one real workflow, prints the dashboard result
+QEOF

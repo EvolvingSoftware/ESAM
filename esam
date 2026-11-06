@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# ESAM CLI wrapper — `esam demo` seeds + runs one real workflow and prints the
+# visible dashboard result. Uses the local .venv if present, else python3.
+set -eu
+HERE="$(cd "$(dirname "$0" && pwd)" 2>/dev/null || cd "$(dirname "$0")" && pwd)"
+# Pick up ESAM_API_BASE / ESAM_PORT written by install.sh (if present).
+if [ -f "$HERE/esam.env" ]; then . "$HERE/esam.env"; fi
+PY=""
+if [ -x "$HERE/.venv/bin/python" ]; then PY="$HERE/.venv/bin/python"; fi
+for cand in python3.12 python3.11 python3; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="${PY:-$cand}"; break; fi
+done
+[ -n "$PY" ] || { echo "ERROR: no Python interpreter found (need python3)." >&2; exit 1; }
+exec "$PY" "$HERE/scripts/esam_cli.py" "$@"
