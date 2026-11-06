@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESAM — Workflow Designer</title>
+<style>
+  :root {
+    --bg: #0d0d0d; --surface: #1a1a1a; --border: #2a2a2a;
+    --text: #e0e0e0; --dim: #808080; --accent: #42a5f5;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+  }
+  header .logo { font-weight: 700; letter-spacing: 0.5px; color: #e53935; }
+  header a {
+    color: var(--dim); text-decoration: none; font-size: 14px;
+  }
+  header a:hover { color: var(--text); }
+  main { flex: 1; display: grid; place-items: center; position: relative; overflow: hidden; }
+  #canvas {
+    width: min(90vw, 1200px); height: min(60vh, 560px);
+    background:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    border: 1px solid var(--border); border-radius: 8px;
+  }
+  .node {
+    position: absolute; width: 180px; padding: 12px 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); border-radius: 6px;
+    font-size: 13px;
+  }
+  .node b { display: block; margin-bottom: 4px; color: var(--text); }
+  .node span { color: var(--dim); font-size: 12px; }
+  footer {
+    padding: 8px 20px; border-top: 1px solid var(--border);
+    color: var(--dim); font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">ESAM</span>
+  <a href="/">Dashboard</a>
+  <a href="/docs">API docs</a>
+  <a href="/health">Health</a>
+</header>
+<main id="canvas">
+  <div class="node" style="top:12%; left:8%;"><b>Trigger</b><span>Schedule — daily 09:00</span></div>
+  <div class="node" style="top:38%; left:40%; border-left-color:#ffb300;"><b>Agent step</b><span>Hermes · review receivables</span></div>
+  <div class="node" style="top:64%; left:72%; border-left-color:#4caf50;"><b>Action</b><span>Emit report → portal</span></div>
+</main>
+<footer>Workflow designer — visual editor for ESAM workflows (YAML + Git-native backend).</footer>
+<script>
+  // Minimal interactive canvas: click to place a node.
+  const main = document.getElementById('canvas');
+  let n = 0;
+  main.addEventListener('click', (e) => {
+    if (e.target !== main) return;
+    n += 1;
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.style.borderLeftColor = '#42a5f5';
+    el.innerHTML = '<b>New step</b><span>drag to position (v0)</span>';
+    el.style.top = Math.max(0, e.offsetY - 30) + 'px';
+    el.style.left = Math.max(0, e.offsetX - 90) + 'px';
+    main.appendChild(el);
+  });
+</script>
+</body>
+</html>
