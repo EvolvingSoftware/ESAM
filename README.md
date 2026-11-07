@@ -1,3 +1,32 @@
+## Quickstart — stranger-runnable install proof
+
+The exact public path, run verbatim in a clean venv on a fresh host. Full transcript,
+served-dashboard evidence, and screenshot live in [`docs/install-proof.md`](docs/install-proof.md).
+
+```bash
+git clone https://github.com/EvolvingSoftware/ESAM.git esam-run2 && cd esam-run2
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+make seed
+PORT=8137 make serve   # default port is 8000; override shown for the proof run
+```
+
+Then log in as `demo@evolving.software` / `demo123` and load `/` + `/designer`:
+
+```bash
+curl -s -X POST http://localhost:8137/api/auth/login   -H 'Content-Type: application/json'   -d '{"email":"demo@evolving.software","password":"demo123"}'
+curl -s -o /dev/null -w '%{http_code} %{size_download}
+' http://localhost:8137/
+curl -s -o /dev/null -w '%{http_code} %{size_download}
+' http://localhost:8137/designer
+```
+
+Expected: login returns HTTP 200 with a bearer token; `GET /` and `GET /designer`
+each return HTTP 200 (dashboard + workflow designer). See the proof doc for the
+verbatim output of every step.
+
+---
+
 curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.1/install.sh | sh
 
 # ESAM — Evolving Software Agent Manager
