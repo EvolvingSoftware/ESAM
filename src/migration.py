@@ -77,9 +77,23 @@ def run_pending_migrations() -> list[dict]:
             conn.commit()
             applied.append(migration)
             logger.info("Applied migration v%d: %s", migration["version"], migration["description"])
-        except Exception:
-            logger.exception("Failed to apply migration v%d: %s", migration["version"], migration["description"])
-            raise
+        except Exception as exc:
+            if "duplicate column name" in str(exc):
+                # Idempotency guard: a fresh schema (agent_workflow.SCHEMA_SQL) may already contain the
+                # column this migration adds. Roll back the partial ALTER, record the version as applied,
+                # and continue so startup is not aborted on a clean database.
+                conn = get_connection()
+                conn.rollback()
+                conn.execute(
+                    "INSERT OR IGNORE INTO schema_versions (version, applied_at, description) VALUES (?, ?, ?)",
+                    (migration["version"], datetime.now(timezone.utc).isoformat(), migration["description"]),
+                )
+                conn.commit()
+                applied.append(migration)
+                logger.info("Migration v%d already satisfied (idempotent skip): %s", migration["version"], migration["description"])
+            else:
+                logger.exception("Failed to apply migration v%d: %s", migration["version"], migration["description"])
+                raise
     return applied
 
 
