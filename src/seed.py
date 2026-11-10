@@ -205,6 +205,18 @@ def seed_all() -> dict:
             )
             result["debtors"] += 1
 
+    # 4b. Deterministic quickstart debtor (stable id for the public quickstart)
+    existing_qs = conn.execute("SELECT id FROM debtors WHERE id = ?", ("quickstart",)).fetchone()
+    if not existing_qs:
+        conn.execute(
+            "INSERT INTO debtors (id, business_id, name, email, phone, invoice_number, "
+            "amount_cents, due_date, days_overdue, state, created_at, updated_at) "
+            "VALUES (?, 'biz-001', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("quickstart", "Quickstart Debtor", "quickstart@example.com", "",
+             "QS-0001", 5000, now[:10], 3, "pending", now, now),
+        )
+        result["debtors"] += 1
+
     # 5. Audit entries
     audit_count = conn.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
     if audit_count < 2:
