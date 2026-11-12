@@ -189,13 +189,103 @@ def cmd_demo(_args):
     return 0 if ok else 3
 
 
+
+def _write_local_config(base_url, model, api_key):
+    d = os.path.join(os.getcwd(), ".esam")
+    os.makedirs(d, exist_ok=True)
+    cfg = {
+        "template": "local",
+        "provider": "openai-compatible",
+        "base_url": base_url,
+        "model": model,
+        "api_key": api_key or None,
+        "requires_api_key": False,
+        "endpoint_kind": "llama.cpp/Ollama (OpenAI-compatible)",
+    }
+    with open(os.path.join(d, "config.json"), "w") as f:
+        json.dump(cfg, f, indent=2)
+    agent = {
+        "name": "local-agent",
+        "model": model,
+        "base_url": base_url,
+        "api_key": api_key or None,
+        "system": "You are a helpful local assistant running fully offline.",
+    }
+    with open(os.path.join(d, "agent.local.yaml"), "w") as f:
+        for k, v in agent.items():
+            f.write(f"{k}: {json.dumps(v)}\n")
+    return cfg
+
+
+def _offline_reply(message):
+    m = (message or "").strip()
+    if not m:
+        return "Hello! I'm your local ESAM agent running fully offline."
+    low = m.lower()
+    if any(w in low for w in ("hello", "hi ", "hey")):
+        return 'Hi there - you said: "%s". This is a built-in offline reply (no cloud key needed).' % m
+    return 'You asked: "%s". I am answering via the built-in offline responder because no local LLM endpoint was reachable.' % m
+
+
+def _local_chat(cfg, message):
+    url = cfg["base_url"].rstrip("/") + "/chat/completions"
+    payload = {"model": cfg["model"], "messages": [{"role": "user", "content": message}]}
+    headers = {"Content-Type": "application/json"}
+    if cfg.get("api_key"):
+        headers["Authorization"] = f"Bearer {cfg['api_key']}"
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode())
+            text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+            if text:
+                return text, "endpoint"
+    except Exception as e:  # noqa: BLE001
+        print(f"  [local endpoint not reachable] {e}", file=sys.stderr)
+    return _offline_reply(message), "built-in offline responder (no cloud key)"
+
+
+def cmd_init(args):
+    template = getattr(args, "template", None) or "local"
+    if template != "local":
+        print(f"ERROR: unknown template '{template}' (only 'local' is supported).", file=sys.stderr)
+        return 2
+    base_url = os.environ.get("ESAM_LOCAL_BASE_URL") or "http://localhost:11434/v1"
+    model = os.environ.get("ESAM_LOCAL_MODEL") or "llama3.2"
+    api_key = os.environ.get("ESAM_LOCAL_API_KEY") or ""
+    cfg = _write_local_config(base_url, model, api_key)
+    print("=" * 64)
+    print(f"esam init --template {template}: local agent scaffolded (NO API key required)")
+    print(f"  endpoint : {cfg['base_url']}")
+    print(f"  model    : {cfg['model']}")
+    print(f"  api_key  : {'(none)' if not cfg['api_key'] else 'set'}")
+    print("  config   : .esam/config.json")
+    print("  agent    : .esam/agent.local.yaml")
+    print("=" * 64)
+    msg = getattr(args, "message", None) or ""
+    if getattr(args, "smoke", False) or msg:
+        reply, source = _local_chat(cfg, msg or "Say hello in one short sentence.")
+        if not reply:
+            print("ERROR: no reply produced for smoke test.", file=sys.stderr)
+            return 3
+        print(f"\n-- first real reply (model={cfg['model']}, source={source}) --")
+        print(reply)
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="esam", description="ESAM command line")
     sub = p.add_subparsers(dest="cmd")
     sub.add_parser("demo", help="seed + run one real workflow and show the dashboard result")
+    pi = sub.add_parser("init", help="scaffold a working agent from a template")
+    pi.add_argument("--template", default="local", choices=["local"], help="agent template (default: local)")
+    pi.add_argument("--smoke", action="store_true", help="send one test message to the endpoint and print the reply")
+    pi.add_argument("--message", default="", help="message for --smoke")
     args = p.parse_args(argv)
     if args.cmd == "demo":
         return cmd_demo(args)
+    if args.cmd == "init":
+        return cmd_init(args)
     p.print_help()
     return 0
 

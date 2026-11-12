@@ -1,3 +1,24 @@
+# No-cloud-keys path (local LLM) — no API key, no cloud account
+
+Want a working agent with **no API key and no cloud account**? Point ESAM at a
+local llama.cpp or Ollama endpoint (OpenAI-compatible). From any empty directory:
+
+```bash
+esam init --template local          # scaffold .esam/ config + agent, NO api key needed
+ESAM_LOCAL_BASE_URL=http://localhost:11434/v1 \
+ESAM_LOCAL_MODEL=llama3.2 \
+esam init --template local --smoke  # send one message, print the first real reply
+```
+
+Defaults (override with env): `ESAM_LOCAL_BASE_URL` = `http://localhost:11434/v1`,
+`ESAM_LOCAL_MODEL` = `llama3.2`. No `api_key` is required — set
+`ESAM_LOCAL_API_KEY` only if your endpoint demands one.
+
+Full end-to-end proof (empty dir -> install -> init --template local -> first real
+reply) lives in [`docs/transcripts/local-template-proof.md`](docs/transcripts/local-template-proof.md).
+
+---
+
 ## Quickstart — stranger-runnable install proof
 
 The exact public path, run verbatim in a clean venv on a fresh host. Full transcript,
