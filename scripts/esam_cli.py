@@ -273,11 +273,30 @@ def cmd_init(args):
     return 0
 
 
+def cmd_ask(args):
+    message = " ".join(getattr(args, "message", []) or []).strip()
+    cfg_path = os.path.join(os.getcwd(), ".esam", "config.json")
+    if not os.path.isfile(cfg_path):
+        print("ERROR: no .esam/config.json found - run `esam init --template local` first.", file=sys.stderr)
+        return 2
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    reply, source = _local_chat(cfg, message or "ping")
+    if not reply:
+        print("ERROR: no reply produced.", file=sys.stderr)
+        return 3
+    print(reply)
+    print(f"(source: {source})", file=sys.stderr)
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="esam", description="ESAM command line")
     sub = p.add_subparsers(dest="cmd")
     sub.add_parser("demo", help="seed + run one real workflow and show the dashboard result")
     pi = sub.add_parser("init", help="scaffold a working agent from a template")
+    pa = sub.add_parser("ask", help="send a message to the configured local agent and print its reply")
+    pa.add_argument("message", nargs="+", help="message text (quoted)")
     pi.add_argument("--template", default="local", choices=["local"], help="agent template (default: local)")
     pi.add_argument("--smoke", action="store_true", help="send one test message to the endpoint and print the reply")
     pi.add_argument("--message", default="", help="message for --smoke")
@@ -286,6 +305,8 @@ def main(argv=None):
         return cmd_demo(args)
     if args.cmd == "init":
         return cmd_init(args)
+    if args.cmd == "ask":
+        return cmd_ask(args)
     p.print_help()
     return 0
 

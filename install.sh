@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-OWNER="EvolvingSoftware"; REPO="ESAM"; TAG="v0.1.2"
+OWNER="EvolvingSoftware"; REPO="ESAM"; TAG="v0.2.1"
 PORT="${PORT:-8000}"
 PYBIN="${PYTHON:-python3}"
 BASE="${ESAM_HOME:-$HOME/esam-$TAG}"
@@ -25,6 +25,19 @@ VPY="$BASE/.venv/bin/python"
 if [ -f "$APPDIR/requirements.txt" ]; then "$VPY" -m pip install -r "$APPDIR/requirements.txt"; fi
 if [ -f "$APPDIR/pyproject.toml" ] || [ -f "$APPDIR/setup.py" ]; then "$VPY" -m pip install "$APPDIR" || "$VPY" -m pip install --no-build-isolation "$APPDIR"; fi
 "$VPY" -m pip install uvicorn fastapi >/dev/null
+
+# Make the `esam` CLI resolvable on PATH without hand-edits (stranger-friendly).
+install_esam_shim() {
+  local d="$1"; mkdir -p "$d" 2>/dev/null || return 0
+  [ -w "$d" ] || return 0
+  printf '#!/usr/bin/env bash
+exec "%s" -m scripts.esam_cli "$@"
+' "$VPY" > "$d/esam" 2>/dev/null && chmod +x "$d/esam" 2>/dev/null || true
+}
+install_esam_shim "$HOME/.local/bin"
+OLDIFS=$IFS; IFS=':'
+for d in $PATH; do [ -n "$d" ] && install_esam_shim "$d"; done
+IFS=$OLDIFS
 cat > "$BASE/run_api.py" <<'PYEOF'
 import sys, importlib
 appdir = sys.argv[1]

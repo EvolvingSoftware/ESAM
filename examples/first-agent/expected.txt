@@ -1,0 +1,4 @@
+Expected output of `./run.sh`:
+
+    === esam ask "ping" ===
+    You asked: "ping". I am answering via the built-in offline responder because no local LLM endpoint was reachable.

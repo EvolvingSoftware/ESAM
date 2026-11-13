@@ -95,7 +95,7 @@ def health_check():
         db_ok = False
     return {
         "status": "ok" if db_ok else "degraded",
-        "version": "0.2.0",
+        "version": "0.2.1",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "database": "connected" if db_ok else "disconnected",
     }
