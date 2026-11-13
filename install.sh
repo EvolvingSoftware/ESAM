@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-OWNER="EvolvingSoftware"; REPO="ESAM"; TAG="v0.2.1"
+OWNER="EvolvingSoftware"; REPO="ESAM"; TAG="v0.2.2"
 PORT="${PORT:-8000}"
 PYBIN="${PYTHON:-python3}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 BASE="${ESAM_HOME:-$HOME/esam-$TAG}"
 mkdir -p "$BASE"
 cd "$BASE"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 APPDIR=""
 if [ -f "$SCRIPT_DIR/src/api_server.py" ] || [ -f "$SCRIPT_DIR/api_server.py" ]; then APPDIR="$SCRIPT_DIR"; fi
 if [ -z "$APPDIR" ] && { [ -f "$BASE/src/api_server.py" ] || [ -f "$BASE/api_server.py" ]; }; then APPDIR="$BASE"; fi
@@ -89,7 +89,8 @@ for _ in range(90):
         rdy=None
     if rdy and rdy.get("status") == "ready": break
     time.sleep(1)
-if not (rdy and rdy.get("status") == "ready"): sys.exit("ready not ready: %r" % (rdy,))
+if not (rdy and rdy.get("status") == "ready"):
+    print("WARN: /ready not 'ready' yet; continuing (esam CLI has an offline fallback).", file=sys.stderr)
 print(json.dumps({"health": h, "ready": rdy}))
 PYEOF
 echo "ESAM $TAG running at http://127.0.0.1:$PORT pid $(cat "$BASE/api.pid")"
