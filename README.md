@@ -21,47 +21,34 @@ reply) lives in [`docs/transcripts/local-template-proof.md`](docs/transcripts/lo
 
 ## Quickstart — stranger-runnable install proof
 
-The exact public path, run verbatim in a clean venv on a fresh host. Full transcript,
-served-dashboard evidence, and screenshot live in [`docs/install-proof.md`](docs/install-proof.md).
+The exact public path: clone `main` in a clean directory and run the commands
+below verbatim on any host with Python 3.11+ (and `make`) plus network access.
+No manual edits, no cloud keys required. The full verbatim transcript of the
+proof run — a throwaway clone of `main` — is at
+[`docs/install-proof-v0.2.0.md`](docs/install-proof-v0.2.0.md), with a screenshot
+at [`docs/assets/install-proof-v0.2.0.png`](docs/assets/install-proof-v0.2.0.png).
 
 ```bash
-git clone https://github.com/EvolvingSoftware/ESAM.git esam-run2 && cd esam-run2
+git clone https://github.com/EvolvingSoftware/ESAM.git esam && cd esam
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
+./.venv/bin/pip install .
 make seed
-PORT=8137 make serve   # default port is 8000; override shown for the proof run
+PORT=8137 nohup make serve > /tmp/esam-serve.log 2>&1 &
+for i in $(seq 1 30); do curl -sf http://localhost:8137/health >/dev/null 2>&1 && break; sleep 1; done
+curl -s -w '\n[HTTP %{http_code}]\n' http://localhost:8137/health
+./.venv/bin/esam init --template local --smoke
 ```
 
-Then log in as `demo@evolving.software` / `demo123` and load `/` + `/designer`:
+Expected results (all observed in the proof run):
 
-```bash
-curl -s -X POST http://localhost:8137/api/auth/login   -H 'Content-Type: application/json'   -d '{"email":"demo@evolving.software","password":"demo123"}'
-curl -s -o /dev/null -w '%{http_code} %{size_download}
-' http://localhost:8137/
-curl -s -o /dev/null -w '%{http_code} %{size_download}
-' http://localhost:8137/designer
-```
+- `GET /health` → HTTP 200 with `{"status":"ok","version":"0.2.0",...,"database":"connected"}`
+- `esam init --template local --smoke` scaffolds `.esam/config.json` and
+  `.esam/agent.local.yaml` (no API key needed) and prints a first real reply —
+  from your local LLM endpoint if one is listening at `http://localhost:11434/v1`,
+  otherwise from the built-in offline responder.
 
-Expected: login returns HTTP 200 with a bearer token; `GET /` and `GET /designer`
-each return HTTP 200 (dashboard + workflow designer). See the proof doc for the
-verbatim output of every step.
-
----
-
-curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.1/install.sh | sh
-
-# ESAM — Evolving Software Agent Manager
-
-**Build software with agents without losing sight or control of the system.**
-
-ESAM is the core platform for creating, running, observing, and evolving agentic
-software. It combines a visual workflow designer with a YAML- and Git-native
-backend so that people, Hermes, Codex, and other coding agents can work on the
-same system through the interface that suits them best.
-
-> Debt Management and the Intelligence Newsletter are **example products built
-> on ESAM**. They are not ESAM itself. They exist to exercise the platform with
-> realistic workflows and drive development of reusable platform capabilities.
+Stop the server afterwards with `pkill -f 'uvicorn api_server'`.
 
 ## Install (one line)
 

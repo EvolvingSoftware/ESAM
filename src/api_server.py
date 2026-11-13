@@ -71,7 +71,7 @@ except Exception:
 
 app = FastAPI(
     title="ES Agent Management",
-    version="0.1.0",
+    version="0.2.0",
     description="Evolving Software Agent Management — Current API",
 )
 
@@ -95,7 +95,7 @@ def health_check():
         db_ok = False
     return {
         "status": "ok" if db_ok else "degraded",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "database": "connected" if db_ok else "disconnected",
     }
@@ -392,7 +392,7 @@ def root():
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.2.0"}
 
 
 # ── Observability Routes ──────────────────────────────────────────
