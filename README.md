@@ -218,3 +218,18 @@ tag under `docs/transcripts/`.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## First agent (runnable example)
+
+A minimal, runnable demo lives at `examples/first-agent/`. After the quickstart above:
+
+```bash
+cd examples/first-agent && ./run.sh
+```
+
+Expected output (see `examples/first-agent/expected.txt`):
+
+```
+=== esam ask "ping" ===
+You asked: "ping". I am answering via the built-in offline responder because no local LLM endpoint was reachable.
+```

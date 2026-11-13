@@ -1,36 +1,30 @@
-# ESAM Quickstart (v0.1.2)
+# ESAM Quickstart (v0.2.1)
 
-One command on a fresh machine (no lab SSH or pre-baked keys):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.2/install.sh | bash
-```
-
-If `curl` is unavailable:
+Copy-paste this on a fresh machine (Python 3.11+, no lab SSH, no pre-baked keys):
 
 ```bash
-python3 -c "import urllib.request;urllib.request.urlretrieve('https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.2/install.sh','install.sh')" && bash install.sh
+git clone https://github.com/EvolvingSoftware/ESAM.git esam && cd esam
+./install.sh
+esam init --template local
+esam ask "ping"
 ```
 
-The installer downloads the v0.1.2 release artifact, creates a local venv, starts the API on `http://127.0.0.1:8000`, and waits for `/health` + `/ready`.
+What happens:
+1. `git clone` pulls the public repo.
+2. `./install.sh` creates a venv, installs ESAM + deps, starts the API on `http://127.0.0.1:8000`, waits for `/health`+`/ready`, and drops an `esam` launcher onto your PATH (no hand-edits).
+3. `esam init --template local` scaffolds a working local agent in `.esam/config.json`.
+4. `esam ask "ping"` sends a message to the configured agent and prints its reply.
 
-Check it:
+Expected final output:
+
+```
+You asked: "ping". I am answering via the built-in offline responder because no local LLM endpoint was reachable.
+(source: built-in offline responder (no cloud key))
+```
+
+Check the API directly:
 
 ```bash
 curl -fsS http://127.0.0.1:8000/health
 curl -fsS http://127.0.0.1:8000/ready
-```
-
-Send one chat reply classification (no fleet keys required):
-
-```bash
-curl -fsS -X POST http://127.0.0.1:8000/api/tether/reply/classify \
-  -H 'Content-Type: application/json' \
-  -d '{"debtor_id":"quickstart","subject":"release check","body":"Hello ESAM, please acknowledge this clean-account release test."}'
-```
-
-Stop the server:
-
-```bash
-kill "$(cat ~/esam-v0.1.2/api.pid)"
 ```
