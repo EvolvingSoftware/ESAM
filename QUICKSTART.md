@@ -1,4 +1,4 @@
-# ESAM Quickstart (v0.2.1)
+# ESAM Quickstart (v0.2.2)
 
 Copy-paste this on a fresh machine (Python 3.11+, no lab SSH, no pre-baked keys):
 
