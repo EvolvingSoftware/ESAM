@@ -1,5 +1,29 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "esam"
+version = "0.2.0"
+description = "ESAM — multi-entity agent framework (public quickstart)"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "pydantic>=2.6",
+  "cryptography>=42.0",
+  "PyJWT>=2.8",
+  "passlib>=1.7.4",
+  "markdown>=3.5",
+  "PyYAML>=6.0",
+]
+
 [project.scripts]
+esam = "scripts.esam_cli:main"
 esam-connectors = "scripts.connectors_cli:main"
+
+[tool.setuptools]
+packages = ["scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["src/tests"]
