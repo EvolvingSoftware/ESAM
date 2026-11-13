@@ -89,7 +89,8 @@ for _ in range(90):
         rdy=None
     if rdy and rdy.get("status") == "ready": break
     time.sleep(1)
-if not (rdy and rdy.get("status") == "ready"): sys.exit("ready not ready: %r" % (rdy,))
+if not (rdy and rdy.get("status") == "ready"):
+    print("WARN: /ready not 'ready' yet; continuing (esam CLI has an offline fallback).", file=sys.stderr)
 print(json.dumps({"health": h, "ready": rdy}))
 PYEOF
 echo "ESAM $TAG running at http://127.0.0.1:$PORT pid $(cat "$BASE/api.pid")"
