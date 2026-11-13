@@ -35,14 +35,17 @@ python3 -m venv .venv
 ./.venv/bin/pip install .
 make seed
 PORT=8137 nohup make serve > /tmp/esam-serve.log 2>&1 &
-for i in $(seq 1 30); do curl -sf http://localhost:8137/health >/dev/null 2>&1 && break; sleep 1; done
-curl -s -w '\n[HTTP %{http_code}]\n' http://localhost:8137/health
+sleep 3
+for i in $(seq 1 45); do ./.venv/bin/python -c "import urllib.request,sys; urllib.request.urlopen('http://localhost:8137/health')" >/dev/null 2>&1 && break; sleep 1; done
+./.venv/bin/python -c "import urllib.request as u; r=u.urlopen('http://localhost:8137/health'); print(r.status, r.read().decode())"
 ./.venv/bin/esam init --template local --smoke
 ```
 
 Expected results (all observed in the proof run):
 
-- `GET /health` → HTTP 200 with `{"status":"ok","version":"0.2.0",...,"database":"connected"}`
+- `GET /health` → HTTP **200** with `{"status":"ok","version":"0.2.0",...,"database":"connected"}`
+  (the health check uses the venv's own Python so no extra binary like `curl`
+  is required — it runs on any host that has Python).
 - `esam init --template local --smoke` scaffolds `.esam/config.json` and
   `.esam/agent.local.yaml` (no API key needed) and prints a first real reply —
   from your local LLM endpoint if one is listening at `http://localhost:11434/v1`,
