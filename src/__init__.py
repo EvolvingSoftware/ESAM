@@ -7,5 +7,5 @@ Code-first architecture: YAML files are source of truth.
 Database is a runtime cache. Git provides versioning.
 """
 
-__version__ = "0.2.0"
-__version_info__ = (0, 2, 0)
+__version__ = "0.2.4"
+__version_info__ = (0, 2, 4)
