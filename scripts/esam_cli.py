@@ -217,6 +217,33 @@ def _write_local_config(base_url, model, api_key):
     return cfg
 
 
+def _write_cloud_config(base_url, model, api_key):
+    d = os.path.join(os.getcwd(), ".esam")
+    os.makedirs(d, exist_ok=True)
+    cfg = {
+        "template": "cloud",
+        "provider": "openai-compatible",
+        "base_url": base_url,
+        "model": model,
+        "api_key": api_key or None,
+        "requires_api_key": True,
+        "endpoint_kind": "cloud (OpenAI-compatible, API key; no local GPU)",
+    }
+    with open(os.path.join(d, "config.json"), "w") as f:
+        json.dump(cfg, f, indent=2)
+    agent = {
+        "name": "cloud-agent",
+        "model": model,
+        "base_url": base_url,
+        "api_key": api_key or None,
+        "system": "You are a helpful cloud assistant.",
+    }
+    with open(os.path.join(d, "agent.cloud.yaml"), "w") as f:
+        for k, v in agent.items():
+            f.write(f"{k}: {json.dumps(v)}\n")
+    return cfg
+
+
 def _offline_reply(message):
     m = (message or "").strip()
     if not m:
@@ -247,21 +274,38 @@ def _local_chat(cfg, message):
 
 def cmd_init(args):
     template = getattr(args, "template", None) or "local"
-    if template != "local":
-        print(f"ERROR: unknown template '{template}' (only 'local' is supported).", file=sys.stderr)
+    if template == "local":
+        base_url = os.environ.get("ESAM_LOCAL_BASE_URL") or "http://localhost:11434/v1"
+        model = os.environ.get("ESAM_LOCAL_MODEL") or "llama3.2"
+        api_key = os.environ.get("ESAM_LOCAL_API_KEY") or ""
+        cfg = _write_local_config(base_url, model, api_key)
+        print("=" * 64)
+        print(f"esam init --template {template}: local agent scaffolded (NO API key required)")
+        print(f"  endpoint : {cfg['base_url']}")
+        print(f"  model    : {cfg['model']}")
+        print(f"  api_key  : {'(none)' if not cfg['api_key'] else 'set'}")
+        print("  config   : .esam/config.json")
+        print("  agent    : .esam/agent.local.yaml")
+        print("=" * 64)
+    elif template == "cloud":
+        base_url = os.environ.get("ESAM_CLOUD_BASE_URL") or "https://api.openai.com/v1"
+        model = os.environ.get("ESAM_CLOUD_MODEL") or "gpt-4o-mini"
+        api_key = (os.environ.get("ESAM_CLOUD_API_KEY")
+                   or os.environ.get("OPENAI_API_KEY") or "")
+        cfg = _write_cloud_config(base_url, model, api_key)
+        print("=" * 64)
+        print(f"esam init --template {template}: cloud agent scaffolded (API key; no local GPU)")
+        print(f"  endpoint : {cfg['base_url']}")
+        print(f"  model    : {cfg['model']}")
+        print(f"  api_key  : {'(none - set ESAM_CLOUD_API_KEY or OPENAI_API_KEY)' if not cfg['api_key'] else 'set'}")
+        print("  config   : .esam/config.json")
+        print("  agent    : .esam/agent.cloud.yaml")
+        print("=" * 64)
+        if not api_key:
+            print("NOTE: no API key found. Set ESAM_CLOUD_API_KEY (or OPENAI_API_KEY) to make live calls.", file=sys.stderr)
+    else:
+        print(f"ERROR: unknown template '{template}' (supported: local, cloud).", file=sys.stderr)
         return 2
-    base_url = os.environ.get("ESAM_LOCAL_BASE_URL") or "http://localhost:11434/v1"
-    model = os.environ.get("ESAM_LOCAL_MODEL") or "llama3.2"
-    api_key = os.environ.get("ESAM_LOCAL_API_KEY") or ""
-    cfg = _write_local_config(base_url, model, api_key)
-    print("=" * 64)
-    print(f"esam init --template {template}: local agent scaffolded (NO API key required)")
-    print(f"  endpoint : {cfg['base_url']}")
-    print(f"  model    : {cfg['model']}")
-    print(f"  api_key  : {'(none)' if not cfg['api_key'] else 'set'}")
-    print("  config   : .esam/config.json")
-    print("  agent    : .esam/agent.local.yaml")
-    print("=" * 64)
     msg = getattr(args, "message", None) or ""
     if getattr(args, "smoke", False) or msg:
         reply, source = _local_chat(cfg, msg or "Say hello in one short sentence.")
@@ -271,7 +315,6 @@ def cmd_init(args):
         print(f"\n-- first real reply (model={cfg['model']}, source={source}) --")
         print(reply)
     return 0
-
 
 def cmd_ask(args):
     message = " ".join(getattr(args, "message", []) or []).strip()
@@ -297,7 +340,7 @@ def main(argv=None):
     pi = sub.add_parser("init", help="scaffold a working agent from a template")
     pa = sub.add_parser("ask", help="send a message to the configured local agent and print its reply")
     pa.add_argument("message", nargs="+", help="message text (quoted)")
-    pi.add_argument("--template", default="local", choices=["local"], help="agent template (default: local)")
+    pi.add_argument("--template", default="local", choices=["local", "cloud"], help="agent template (default: local)")
     pi.add_argument("--smoke", action="store_true", help="send one test message to the endpoint and print the reply")
     pi.add_argument("--message", default="", help="message for --smoke")
     args = p.parse_args(argv)
