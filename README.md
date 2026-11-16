@@ -60,7 +60,7 @@ a virtualenv, installs dependencies, seeds the demo workflow, and boots the API
 on `:8000`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.1.1/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.2.5/install.sh | sh
 ```
 
 When it finishes you get a live dashboard at `http://localhost:8000/designer`

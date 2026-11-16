@@ -1,96 +1,71 @@
-#!/usr/bin/env bash
-set -euo pipefail
-OWNER="EvolvingSoftware"; REPO="ESAM"; TAG="v0.2.2"
-PORT="${PORT:-8000}"
+#!/bin/sh
+# ESAM one-line installer (POSIX sh).
+#
+#   curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.2.5/install.sh | sh
+#
+# What it does, with no prior ESAM config and no hand-edits:
+#   1. Fetches the tagged source (git clone of the tag; codeload tarball fallback).
+#   2. Builds an isolated venv and installs requirements + the esam package.
+#   3. Drops an `esam` launcher onto every writable dir already on $PATH so the
+#      command is resolvable immediately (no profile edits, no curl/wget needed).
+#   4. Best-effort seeds the local database (non-fatal if it fails).
+#
+set -eu
+OWNER="EvolvingSoftware"; REPO="ESAM"; TAG="${ESAM_TAG:-v0.2.5}"
 PYBIN="${PYTHON:-python3}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 BASE="${ESAM_HOME:-$HOME/esam-$TAG}"
 mkdir -p "$BASE"
-cd "$BASE"
-APPDIR=""
-if [ -f "$SCRIPT_DIR/src/api_server.py" ] || [ -f "$SCRIPT_DIR/api_server.py" ]; then APPDIR="$SCRIPT_DIR"; fi
-if [ -z "$APPDIR" ] && { [ -f "$BASE/src/api_server.py" ] || [ -f "$BASE/api_server.py" ]; }; then APPDIR="$BASE"; fi
-if [ -z "$APPDIR" ]; then
-  ASSET="https://github.com/$OWNER/$REPO/releases/download/$TAG/ESAM-$TAG.tar.gz"
-  "$PYBIN" -c 'import sys,urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])' "$ASSET" "$BASE/esam-release.tgz"
-  tar xzf "$BASE/esam-release.tgz" -C "$BASE"
-  for d in "$BASE"/*/; do
-    if [ -f "${d}src/api_server.py" ] || [ -f "${d}api_server.py" ]; then APPDIR="${d%/}"; break; fi
-  done
+SRC="$BASE/src"
+
+# --- 1. get the tagged source -------------------------------------------------
+if [ ! -f "$SRC/pyproject.toml" ]; then
+  rm -rf "$SRC"
+  if command -v git >/dev/null 2>&1; then
+    if git clone --depth 1 --branch "$TAG" "https://github.com/$OWNER/$REPO.git" "$SRC" 2>/dev/null; then
+      echo "[esam] cloned $TAG via git"
+    else
+      rm -rf "$SRC"; mkdir -p "$SRC"
+      "$PYBIN" -c 'import sys,urllib.request as u;u.urlretrieve(sys.argv[1],sys.argv[2])' \
+        "https://codeload.github.com/$OWNER/$REPO/tar.gz/refs/tags/$TAG" "$BASE/esam.tgz"
+      tar xzf "$BASE/esam.tgz" -C "$SRC" --strip-components=1
+      echo "[esam] fetched $TAG via codeload tarball"
+    fi
+  else
+    mkdir -p "$SRC"
+    "$PYBIN" -c 'import sys,urllib.request as u;u.urlretrieve(sys.argv[1],sys.argv[2])' \
+      "https://codeload.github.com/$OWNER/$REPO/tar.gz/refs/tags/$TAG" "$BASE/esam.tgz"
+    tar xzf "$BASE/esam.tgz" -C "$SRC" --strip-components=1
+    echo "[esam] fetched $TAG via codeload tarball (no git)"
+  fi
 fi
-if [ -z "$APPDIR" ] || { [ ! -f "$APPDIR/src/api_server.py" ] && [ ! -f "$APPDIR/api_server.py" ]; }; then echo "ESAM source not found" >&2; exit 1; fi
+if [ ! -f "$SRC/pyproject.toml" ]; then echo "ESAM source not found at $SRC" >&2; exit 1; fi
+
+# --- 2. venv + deps + package -------------------------------------------------
 "$PYBIN" -m venv "$BASE/.venv"
 VPY="$BASE/.venv/bin/python"
-"$VPY" -m pip install --upgrade pip >/dev/null
-if [ -f "$APPDIR/requirements.txt" ]; then "$VPY" -m pip install -r "$APPDIR/requirements.txt"; fi
-if [ -f "$APPDIR/pyproject.toml" ] || [ -f "$APPDIR/setup.py" ]; then "$VPY" -m pip install "$APPDIR" || "$VPY" -m pip install --no-build-isolation "$APPDIR"; fi
-"$VPY" -m pip install uvicorn fastapi >/dev/null
+"$VPY" -m pip install --upgrade pip >/dev/null 2>&1 || true
+(cd "$SRC" && "$VPY" -m pip install -r requirements.txt)
+(cd "$SRC" && ("$VPY" -m pip install . || "$VPY" -m pip install --no-build-isolation .))
 
-# Make the `esam` CLI resolvable on PATH without hand-edits (stranger-friendly).
-install_esam_shim() {
-  local d="$1"; mkdir -p "$d" 2>/dev/null || return 0
-  [ -w "$d" ] || return 0
-  printf '#!/usr/bin/env bash
-exec "%s" -m scripts.esam_cli "$@"
-' "$VPY" > "$d/esam" 2>/dev/null && chmod +x "$d/esam" 2>/dev/null || true
-}
-install_esam_shim "$HOME/.local/bin"
+# --- 3. put `esam` on PATH (every writable dir already on $PATH) --------------
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/esam" <<EOF
+#!/bin/sh
+exec "$VPY" -m scripts.esam_cli "\$@"
+EOF
+chmod +x "$HOME/.local/bin/esam"
 OLDIFS=$IFS; IFS=':'
-for d in $PATH; do [ -n "$d" ] && install_esam_shim "$d"; done
+for d in $PATH; do
+  [ -n "$d" ] || continue
+  if [ -w "$d" ]; then
+    printf '#!/bin/sh\nexec "%s" -m scripts.esam_cli "%%@"\n' "$VPY" > "$d/esam" 2>/dev/null && chmod +x "$d/esam" 2>/dev/null || true
+  fi
+done
 IFS=$OLDIFS
-cat > "$BASE/run_api.py" <<'PYEOF'
-import sys, importlib
-appdir = sys.argv[1]
-port = int(sys.argv[2])
-sys.path.insert(0, appdir)
-app=None
-for mod in ("src.api_server","api_server","main","app"):
-    try:
-        m=importlib.import_module(mod)
-    except Exception:
-        continue
-    for n in ("app","application"):
-        o=getattr(m,n,None)
-        if o is not None and type(o).__name__ in ("FastAPI","Starlette"):
-            app=o; break
-    if app is None:
-        for n in dir(m):
-            o=getattr(m,n,None)
-            if type(o).__name__ == "FastAPI":
-                app=o; break
-    if app is not None: break
-if app is None:
-    sys.exit("no FastAPI app found")
-from uvicorn import run
-run(app, host="127.0.0.1", port=port)
-PYEOF
-cd "$APPDIR"
-export PYTHONPATH="$APPDIR${PYTHONPATH:+:$PYTHONPATH}"
-nohup "$VPY" "$BASE/run_api.py" "$APPDIR" "$PORT" >"$BASE/api.log" 2>&1 &
-echo $! > "$BASE/api.pid"
-"$PYBIN" - <<PYEOF
-import sys, time, json, urllib.request
-port = int("$PORT")
-def get(p):
-    return json.loads(urllib.request.urlopen("http://127.0.0.1:" + str(port) + p, timeout=3).read())
-h=None; rdy=None
-for _ in range(180):
-    try:
-        h=get("/health")
-    except Exception:
-        h=None
-    if h and h.get("status") == "ok": break
-    time.sleep(1)
-if not (h and h.get("status") == "ok"): sys.exit("health not ok: %r" % (h,))
-for _ in range(90):
-    try:
-        rdy=get("/ready")
-    except Exception:
-        rdy=None
-    if rdy and rdy.get("status") == "ready": break
-    time.sleep(1)
-if not (rdy and rdy.get("status") == "ready"):
-    print("WARN: /ready not 'ready' yet; continuing (esam CLI has an offline fallback).", file=sys.stderr)
-print(json.dumps({"health": h, "ready": rdy}))
-PYEOF
-echo "ESAM $TAG running at http://127.0.0.1:$PORT pid $(cat "$BASE/api.pid")"
+
+# --- 4. best-effort seed (non-fatal) ------------------------------------------
+(cd "$SRC" && PYTHONPATH=src "$VPY" -c "from database import init_db; from multi_entity import EntityManager; from seed import seed_all; init_db(); EntityManager().ensure_tables(); print('seed complete:', seed_all())") \
+  || echo "[esam] seed skipped (non-fatal)"
+
+echo "ESAM $TAG installed to $BASE"
+echo "esam CLI ready: esam init --template local   (see https://github.com/$OWNER/$REPO/tree/$TAG)"
