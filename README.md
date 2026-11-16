@@ -19,61 +19,23 @@ reply) lives in [`docs/transcripts/local-template-proof.md`](docs/transcripts/lo
 
 ---
 
-## Quickstart — stranger-runnable install proof
+## Install (one line) — stranger-runnable, no repo checkout needed
 
-The exact public path: clone `main` in a clean directory and run the commands
-below verbatim on any host with Python 3.11+ (and `make`) plus network access.
-No manual edits, no cloud keys required. The full verbatim transcript of the
-proof run — a throwaway clone of `main` — is at
-[`docs/install-proof-v0.2.0.md`](docs/install-proof-v0.2.0.md), with a screenshot
-at [`docs/assets/install-proof-v0.2.0.png`](docs/assets/install-proof-v0.2.0.png).
-
-```bash
-git clone https://github.com/EvolvingSoftware/ESAM.git esam && cd esam
-python3 -m venv .venv
-./.venv/bin/pip install -r requirements.txt
-./.venv/bin/pip install .
-make seed
-PORT=8137 nohup make serve > /tmp/esam-serve.log 2>&1 &
-sleep 3
-for i in $(seq 1 45); do ./.venv/bin/python -c "import urllib.request,sys; urllib.request.urlopen('http://localhost:8137/health')" >/dev/null 2>&1 && break; sleep 1; done
-./.venv/bin/python -c "import urllib.request as u; r=u.urlopen('http://localhost:8137/health'); print(r.status, r.read().decode())"
-./.venv/bin/esam init --template local --smoke
-```
-
-Expected results (all observed in the proof run):
-
-- `GET /health` → HTTP **200** with `{"status":"ok","version":"0.2.0",...,"database":"connected"}`
-  (the health check uses the venv's own Python so no extra binary like `curl`
-  is required — it runs on any host that has Python).
-- `esam init --template local --smoke` scaffolds `.esam/config.json` and
-  `.esam/agent.local.yaml` (no API key needed) and prints a first real reply —
-  from your local LLM endpoint if one is listening at `http://localhost:11434/v1`,
-  otherwise from the built-in offline responder.
-
-Stop the server afterwards with `pkill -f 'uvicorn api_server'`.
-
-## Install (one line)
-
-On a fresh box — no clone, no `.env`, Python 3.11+ — this single command creates
-a virtualenv, installs dependencies, seeds the demo workflow, and boots the API
-on `:8000`:
+On any host with Python 3.11+ and network access, this single command fetches the tagged source itself (no clone / no repo checkout), builds an isolated venv, installs dependencies, and puts `esam` on your PATH — no cloud keys required for the local template:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/EvolvingSoftware/ESAM/v0.2.5/install.sh | sh
 ```
 
-When it finishes you get a live dashboard at `http://localhost:8000/designer`
-and the API surface at `http://localhost:8000/docs`. The installer prints the
-served URL and HTML so you can verify it is actually up.
+Then, from any empty directory, scaffold a working agent with no API key:
 
-Optional overrides (all env vars, all optional):
+```bash
+esam init --template local
+```
 
-| Var | Meaning | Default |
-| --- | --- | --- |
-| `ESAM_TAG` | git ref to install (tag, branch, or commit) | `v0.1.1` |
-| `ESAM_PORT` | API port the server binds | `8000` |
-| `ESAM_HOME` | directory to extract into and launch from (created if missing) | `$PWD/esam-<tag>` — tag with any leading `v` stripped, e.g. `./esam-0.1.1` |
+The **verified quickstart** — the full verbatim transcript of a stranger running exactly this in a clean environment (fresh HOME, no `~/.esam`, no `ESAM_*` vars) with every step rc=0 — is at [`docs/QUICKSTART-VERIFIED.md`](docs/QUICKSTART-VERIFIED.md).
+
+Stop the server afterwards with `pkill -f 'uvicorn api_server'`.
 
 ## The product model
 
